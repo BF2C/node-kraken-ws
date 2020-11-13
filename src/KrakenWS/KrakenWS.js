@@ -33,10 +33,18 @@ import { isValidPrivateName } from './isValidPrivateName'
  * @typedef {Object} Options
  * @prop {String} url
  * @prop {String} [token]
+ * @prop {Int} [retryCount]
+ * @prop {Int} [retryDelay]
+ * @prop {EventEmitter} EventEmitter
+ * Class to be instantiated as event handler
+ * Must follow the api of the EventEmitter class
  */
 
 const DEFAULT_OPTIONS = {
-    url: 'wss://ws.kraken.com',
+  url: 'wss://ws-auth.kraken.com',
+  retryCount: 5,
+  retryDelay: 1000, // ms
+  EventEmitter, // Event handler for composition
 }
 
 /**
@@ -48,15 +56,20 @@ const DEFAULT_OPTIONS = {
  * @prop {Object.<PairName, Subscription[]>} subscriptions
  * @prop {Options} options
  */
-export class KrakenWS extends EventEmitter {
+export class KrakenWS {
   /**
    * @param {Object} options
    * @param {String} [options.url]
    * @param {String} [options.token]
    */
   constructor(options) {
-    super()
-    
+    // favor composition over inheritance
+    this.eventHandler = new options.EventEmitter()
+
+    // properties
+    this.options = { ...DEFAULT_OPTIONS, ...options }
+    this.retryCounter = 0
+    this.connecting = Promise.reject()
     this.nextReqid = 0
     this.connected = false
     this.connection = null
@@ -69,28 +82,33 @@ export class KrakenWS extends EventEmitter {
       ownTrades: false,
       openOrders: false,
     }
-    this.options = { ...DEFAULT_OPTIONS, ...options }
-
-    // bind EventEmitter methods
-    this.emit = this.emit.bind(this)
   }
 
-  on(event, callback) {
-    super.on(event, callback)
-    return () => this.removeListener(event, callback)
+  /**
+   * Forwards all arguments to the event handler
+   */
+  emit = (...args) => this.eventHandler.emit(...args)
+
+  on(event, callback, ...args) {
+    this.eventHandler.on(event, callback, ...args)
+    return () => this.eventHandler.removeListener(event, callback)
   }
 
+  /**
+   * @return {Promise.<void>}
+   */
   connect = () => {
     if (this.connected) {
       return Promise.resolve()
     }
 
-    return new Promise((resolve, reject) => {
+    this.connecting = new Promise((resolve, reject) => {
       const ws = new WebSocket(this.options.url)
       this.ws = ws
       
       ws.onopen = () => {
         this.connected = true
+        this.emit('kraken:connection:established')
         resolve()
       }
 
@@ -100,19 +118,68 @@ export class KrakenWS extends EventEmitter {
       }
 
       ws.onclose = (...payload) => {
-        console.log('@TODO onclose:', ...payload)
+        // Only reconnect if connection has not been terminated manually
+        this.connected && this.retryConnecting()
+        this.emit('kraken:connection:closed')
       }
 
       ws.onmessage = message => this.handleMessage(message)
     })
+
+    return this.connecting
   }
 
+  /**
+   * @returns {Promise.<void>}
+   */
   disconnect = () => {
-    if (this.connected) {
-      this.ws.disconnect()
+    if (!this.connected) {
+      return Promise.reject(`Connection already closed`)
     }
+
+    this.connected = false
+    this.ws.disconnect()
+    this.connecting = Promise.reject('Closed manually')
+
+    return new Promise(resolve => {
+      const unsubscribe = this.on('kraken:connection:closed', () => {
+        unsubscribe()
+        resolve()
+      })
+    })
   }
 
+  /**
+   * @returns {void}
+   */
+  retryConnecting = () => {
+    if (this.retryCounter === this.options.retryCount) {
+      if (this.retryCounter !== 0) {
+        this.emit('kraken:reconnect:failure', {
+          errorMessage:
+            `Reconnecting failed.\nTried reconnecting ${this.options.retryCount} times.`,
+        })
+      }
+
+      return
+    }
+
+    if (this.retryCounter === 0) {
+      this.emit('kraken:reconnect:start')
+    }
+
+    this.retryCount++
+    this.connect()
+      .then(() => {
+        this.emit('kraken:reconnect:success')
+      })
+      .catch(this.retryConnecting)
+  }
+
+  /**
+   * @param {Object} message
+   * @returns {void}
+   */
   send = message => {
     const payload = process.env.NODE_ENV === 'production'
       ? JSON.stringify(message)
@@ -120,6 +187,15 @@ export class KrakenWS extends EventEmitter {
 
     this.ws.send(payload)
   }
+
+  /**
+   * @param {Function} handler
+   * @returns {Promise.<any>}
+   */
+  withConnection = handler => this.withConnection(
+    () => handler(this.ws),
+    () => Promise.reject('No established websocket connection'),
+  )
 
   /**
    * @param {Object} options
@@ -245,7 +321,7 @@ export class KrakenWS extends EventEmitter {
    * @param {String} [options.token]
    * @returns {Promise.<bool>}
    */
-  subscribePublic(pair, name, options) {
+  subscribePublic = (pair, name, options) => this.withConnection(() => {
     if (!name) return Promise.reject(
       "You need to provide 'name' when subscribing"
     )
@@ -285,7 +361,7 @@ export class KrakenWS extends EventEmitter {
           unsubscribe: () => this.unsubscribe({ pair, name, options })
         }
       })
-  }
+  })
 
   /**
    * @param {String[]} pairs
@@ -297,7 +373,7 @@ export class KrakenWS extends EventEmitter {
    * @param {bool} [options.snapshot]
    * @returns {Promise.<bool>}
    */
-  subscribePublicMultiple(pairs, name, options) {
+  subscribePublicMultiple = (pairs, name, options) => this.withConnection(() => {
     const { reqid, depth, interval, snapshot } = options
 
     if (!name) return Promise.reject(
@@ -369,7 +445,7 @@ export class KrakenWS extends EventEmitter {
         }
       }
     )
-  }
+  })
 
   /**
    * @param {String} name
@@ -379,7 +455,7 @@ export class KrakenWS extends EventEmitter {
    * @param {bool} [options.snapshot]
    * @returns {Promise.<bool>}
    */
-  subscribePrivate(name, { token, reqid, snapshot }) {
+  subscribePrivate = (name, { token, reqid, snapshot }) => this.withConnection(() => {
     if (!name) return Promise.reject(
       'You need to provide "name" when subscribing'
     )
@@ -406,7 +482,7 @@ export class KrakenWS extends EventEmitter {
       this.subscriptions[name] = true
       return payload
     })
-  }
+  })
 
   _handleSubscription = checker => new Promise((resolve, reject) => {
     let unsubscribeSuccess, unsubscribeFailure
@@ -434,7 +510,7 @@ export class KrakenWS extends EventEmitter {
    * @param {String} [args.options.token]
    * @returns {Promise.<bool>}
    */
-  unsubscribe({ pair, name, reqid, options }) {
+  unsubscribe = ({ pair, name, reqid, options }) => this.withConnection(() => {
     if (!name)
       return Promise.reject('You need to provide "name" when subscribing')
 
@@ -465,7 +541,7 @@ export class KrakenWS extends EventEmitter {
         delete this.subscriptions[name][pair]
         return payload
       })
-  }
+  })
 
   /**
    * @param {Object} args
@@ -478,9 +554,9 @@ export class KrakenWS extends EventEmitter {
    * @param {String} [args.options.token]
    * @returns {Promise.<bool>}
    */
-  unsubscribeMultiple = ({ pairs, name, reqid, options }) => {
+  unsubscribeMultiple = ({ pairs, name, reqid, options }) => this.withConnection(() => {
 
-  }
+  })
 
   _handleUnsubscription = checker => new Promise((resolve, reject) => {
     let unsubscribeSuccess, unsubscribeFailure
@@ -502,7 +578,7 @@ export class KrakenWS extends EventEmitter {
    * @param {Int} [options.reqid]
    * @returns {Promise}
    */
-  ping = ({ reqid } = {}) => new Promise(resolve => {
+  ping = ({ reqid } = {}) => this.withConnection(() => new Promise(resolve => {
     const nextReqid = reqid || this.nextReqid++
 
     const unsubscribe = this.on('kraken:pong', payload => {
@@ -512,8 +588,12 @@ export class KrakenWS extends EventEmitter {
     })
 
     this.send({ event: 'ping', reqid: reqid })
-  })
+  }))
   
+  /**
+   * @param {string} e
+   * @returns {void}
+   */
   handleMessage = e => {
     let payload
 
@@ -541,9 +621,6 @@ export class KrakenWS extends EventEmitter {
     } else if (payload.event === 'heartbeat') {
       return this.emit('kraken:heartbeat')
     }
-
-    //console.log('MESSAGE:', JSON.stringify(payload, null, 2))
-    //console.log('');
 
     if (payload.event === 'pong') {
       return this.emit('kraken:pong', payload)
