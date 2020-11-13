@@ -2,11 +2,8 @@ import WebSocket from 'ws'
 //import crypto from 'crypto'
 import EventEmitter from 'events'
 
-import { createUnsubscribePayload } from './createUnsubscribePayload'
-import { getSubscribedPairs } from './getSubscribedPairs'
 import { isValidPublicName } from './isValidPublicName'
 import { isValidPrivateName } from './isValidPrivateName'
-import { removeSubscriptions } from './removeSubscriptions'
 
 /**
  * @typedef {String} PairName
@@ -560,6 +557,16 @@ export class KrakenWS extends EventEmitter {
     }
 
     if (
+      isValidPrivateName(payload.subscription.name) &&
+      payload.event === 'subscriptionStatus' &&
+      payload.status === 'error' &&
+      // no registered subscription -> trying to subscribe
+      !this.subscriptions[payload.subscription.name]
+    ) {
+      return this.emit('kraken:subscribe:failure', payload)
+    }
+
+    if (
       payload.event === 'subscriptionStatus' &&
       payload.status === 'error' &&
       // no registered subscription -> trying to subscribe
@@ -573,6 +580,16 @@ export class KrakenWS extends EventEmitter {
       payload.status === 'unsubscribed'
     ) {
       return this.emit('kraken:unsubscribe:success', payload)
+    }
+
+    if (
+      isValidPrivateName(payload.subscription.name) &&
+      payload.event === 'subscriptionStatus' &&
+      payload.status === 'error' &&
+      // registered subscription -> trying to unsubscribe
+      this.subscriptions[payload.subscription.name]
+    ) {
+      return this.emit('kraken:unsubscribe:failure', payload)
     }
 
     if (
