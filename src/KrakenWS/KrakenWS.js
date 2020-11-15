@@ -35,7 +35,7 @@ import { isValidPrivateName } from './isValidPrivateName'
  * https://github.com/jsdoc/jsdoc/issues/1349
  *
  * @typedef {Object} Options
- * @prop {String} url
+ * @prop {String} [url]
  * @prop {String} [token]
  * @prop {Int} [retryCount]
  * @prop {Int} [retryDelay]
@@ -55,6 +55,28 @@ const DEFAULT_OPTIONS = {
   WebSocket, // web socket class
 }
 
+const isFlagged = (actual, expected) => (actual & expected) === expected
+const convertNamesToFlags = names => names.reduce(
+  (curFlags, name, index) => ({
+    ...curFlags,
+    [name]: 1 << (index + 1),
+  }),
+  {},
+)
+
+const flags = convertNamesToFlags([
+  'FLAG_NEVER_CONNECTED',
+  'FLAG_RECONNECTING',
+  'FLAG_CONNECTION_NO_ESTABLISH',
+  'FLAG_CONNECTION_BROKE',
+  'FLAG_MANUALLY_CLOSED',
+  'FLAG_CONNECTED',
+])
+
+flags.FLAG_CLOSED = flags.FLAG_CONNECTION_BROKE | flags.FLAG_MANUALLY_CLOSED | flags.FLAG_CONNECTION_NO_ESTABLISH
+
+exports.flags = flags
+
 /**
  * Auto-binds all methods so they can be used in functional contexts.
  * This class makes extensive use of the reqid parameter that kraken
@@ -73,15 +95,16 @@ export class KrakenWS {
    */
   constructor(options) {
     // "private" properties
-    this._connecting = Promise.reject()
     this._connection = null
-    this._eventHandler = new options.EventEmitter()
     this._nextReqid = 0
     this._options = { ...DEFAULT_OPTIONS, ...options }
-    this._retryCounter = 0
+    console.log('this._options', this._options);
+
+    // composition over inheritance
+    this._eventHandler = new this._options.EventEmitter()
 
     // public properties
-    this.connected = false
+    this.connectionState = flags.FLAG_NEVER_CONNECTED
     this.subscriptions = {
       ticker: {},
       trade: {},
@@ -108,47 +131,44 @@ export class KrakenWS {
    */
   connect = () => {
     if (this.connected) {
-      return Promise.resolve()
+      return Promise.resolve(this._connection)
     }
 
-    this._connecting = new Promise((resolve, reject) => {
-      const ws = new this._options.WebSocket(this._options.url)
-      this._connection = ws
-      
-      ws.onopen = () => {
-        this.connected = true
-        this._emit('kraken:connection:established')
-        resolve()
+    this._emit('kraken:connection:establishing')
+
+    return new Promise((resolve, reject) => {
+      const onSuccess = ws => {
+        this._emit('kraken:connection:established', { ws })
+        resolve(ws)
       }
 
-      ws.onerror = error => {
-        console.log('@TODO onerror:', error)
-        reject()
+      const onFailure = error => {
+        this._emit('kraken:connection:failed', { error })
+        reject(e)
       }
 
-      ws.onclose = (...payload) => {
-        // Only reconnect if connection has not been terminated manually
-        this.connected && this._retryConnecting()
-        this._emit('kraken:connection:closed')
+      const onClose = () => {
+        if (!this.connected) return
+        this.connected = false
+        this._retryConnecting(0)
       }
 
-      ws.onmessage = message => this.handleMessage(message)
+      this._establishConnection({
+        onSuccess,
+        onClose,
+        onFailure,
+        onMessage: this._handleMessage
+      })
     })
-
-    return this._connecting
   }
 
   /**
    * @returns {Promise.<void>}
    */
   disconnect = () => {
-    if (!this.connected) {
-      return Promise.reject(`Connection already closed`)
-    }
+    if (!this.connected) return Promise.reject(`Connection already closed`)
 
-    this.connected = false
-    this._connection.disconnect()
-    this._connecting = Promise.reject('Closed manually')
+    this.connection.close()
 
     return new Promise(resolve => {
       const unsubscribe = this.on('kraken:connection:closed', () => {
@@ -159,37 +179,37 @@ export class KrakenWS {
   }
 
   /**
+   * @param {Int} retryCounter
    * @returns {void}
    */
-  _retryConnecting = () => {
-    if (this._retryCounter === this._options.retryCount) {
-      if (this._retryCounter !== 0) {
-        this._emit('kraken:reconnect:failure', {
-          errorMessage:
-            `Reconnecting failed.\nTried reconnecting ${this._options.retryCount} times.`,
-        })
-      }
-
+  _retryConnecting = retryCounter => {
+    // do not continue if max retry count has been reached
+    if (retryCounter === this._options.retryCount) {
+      this._emit('kraken:connection:closed')
       return
     }
 
-    if (this._retryCounter === 0) {
-      this._emit('kraken:reconnect:start')
+    // change state to reconnecting during first
+    if (retryCounter === 0) {
+      this.connectionState = flags.FLAG_RECONNECTING
+      this._emit(
+        'kraken:connection:reconnecting',
+        { status: this.connectionState }
+      )
     }
 
-    this.retryCount++
-    
-    this._retryTimeout()
-      .then(() => {
-        this.connect()
-          .then(() => {
-            this._emit('kraken:reconnect:success')
-          })
-          .catch(this._retryConnecting)
-      })
-      .catch(() => {
+    this._retryTimeout().then(
+      () =>
+        this._establishConnection({
+          onClose: () => this._emit('kraken:connection:closed'),
+        })
+          .then(ws => this._emit('kraken:connection:established', { ws }))
+          .catch(() => this._retryConnecting(retryCount + 1))
+      ,
+      () => {
         /* ignore as connection has been terminated manually */
-      })
+      }
+    )
   }
 
   _retryTimeout = () => new Promise((resolve, reject) => {
@@ -218,15 +238,6 @@ export class KrakenWS {
 
     this._connection.send(payload)
   }
-
-  /**
-   * @param {Function} handler
-   * @returns {Promise.<any>}
-   */
-  _withConnection = handler => this._withConnection(
-    () => handler(this._connection),
-    () => Promise.reject('No established websocket connection'),
-  )
 
   /**
    * @param {Object} options
@@ -324,22 +335,20 @@ export class KrakenWS {
 
   /**
    * @param {Object} options
-   * @param {String} options.token
    * @param {Int} [options.reqid]
    * @param {Bool} [options.snapshot]
    * @returns {Promise.<bool>}
    */
-  subscribeToOwnTrades = ({ token, reqid, snapshot }) =>
-    this.subscribePrivate('ownTrades', { reqid, snapshot, token })
+  subscribeToOwnTrades = ({ reqid, snapshot } = {}) =>
+    this.subscribePrivate('ownTrades', { reqid, snapshot, token: this._options.token })
 
   /**
    * @param {Object} options
-   * @param {String} options.token
    * @param {Int} [options.reqid]
    * @returns {Promise.<bool>}
    */
-  subscribeToOpenOrders = ({ token, reqid }) =>
-    this.subscribePrivate('openOrders', { reqid, token })
+  subscribeToOpenOrders = ({ reqid } = {}) =>
+    this.subscribePrivate('openOrders', { reqid, token: this._options.token })
 
   /**
    * @param {String[]|String} pair
@@ -722,4 +731,20 @@ export class KrakenWS {
 
     return this._emit('kraken:unhandled', payload)
   }
+
+  _establishConnection = ({ onClose }) => new Promise((resolve, reject) => {
+    const ws = new this._options.WebSocket(this._options.url)
+    this._connection = ws
+    console.log('this._connection', this._connection);
+
+    ws.onopen = () => resolve(ws)
+    ws.onerror = reject(error)
+    ws.onclose = () => {
+      if (this.connected) return
+      this.connected = false
+      onClose && onClose()
+    }
+
+    ws.onmessage = this._handleMessage
+  })
 }
