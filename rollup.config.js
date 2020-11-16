@@ -1,38 +1,45 @@
-import babel from 'rollup-plugin-babel'
-import eslint from 'rollup-plugin-eslint'
-import resolve from 'rollup-plugin-node-resolve'
-import multiEntry from 'rollup-plugin-multi-entry'
-import uglify from 'rollup-plugin-uglify'
-import filesize from 'rollup-plugin-filesize'
-import commonjs from 'rollup-plugin-commonjs'
-import progress from 'rollup-plugin-progress'
+const babel = require('rollup-plugin-babel')
+const resolve = require('rollup-plugin-node-resolve')
+const commonjs = require('rollup-plugin-commonjs')
 
 let pluginOptions = [
-  multiEntry(),
-  resolve({
-    jsnext: true,
-    browser: true
+  // multiEntry(),
+  // eslint(),
+  // progress(),
+  // uglify(),
+  // filesize({
+  //   showGzippedSize: false,
+  // })
+
+  resolve(),
+  commonjs({
+    include: 'node_modules/**',
   }),
-  commonjs(),
-  eslint(),
-  progress(),
   babel({
     exclude: 'node_modules/**',
   }),
-  uglify(),
-  filesize({
-    showGzippedSize: false,
-  })
 ]
 
-export default [
-  {
-    input: './src/js/index.es6',
-    output: {
-      name: 'main',   // for external calls (need exports)
-      file: 'dist/js/index.min.js',
-      format: 'umd',
-    },
-    plugins: pluginOptions,
+module.exports = {
+  input: './src/index.js',
+  output: {
+    name: 'main',   // for external calls (need exports)
+    file: 'build/index.js',
+    format: 'cjs',
   },
-]
+  plugins: pluginOptions,
+  external: [
+    'crypto',
+    'events',
+    'fs',
+    'http',
+    'https',
+    'net',
+    'os',
+    'path',
+    'stream',
+    'tls',
+    'url',
+    'zlib',
+  ]
+}

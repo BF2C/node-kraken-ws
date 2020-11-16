@@ -3,116 +3,70 @@ import EventEmitter from 'events'
 
 import { isValidPublicName } from './isValidPublicName'
 import { isValidPrivateName } from './isValidPrivateName'
+import { handlePong } from './handlePong'
+import { handleHeartbeat } from './handleHeartbeat'
+import { handleUnhandled } from './handleUnhandled'
+import { handleSystemStatus } from './handleSystemStatus'
+
+const DEFAULT_OPTIONS = {
+  retryCount: 5,
+  retryDelay: 100, // ms
+  EventEmitter, // Event handler for composition
+  WebSocket, // web socket class
+}
 
 /**
- * @typedef {String} PairName
+ * @class KrakenWS
+ * @prop {Object} subscriptions
  */
-
-/**
- * @typedef {Object} Subscription
- *
- * @prop {String} name
- * Name of the subscription. Please refer to
- * https://docs.kraken.com/websockets/#message-subscribe
- * to get a list of all available subscriptions
- *
- * @prop {Int} channelID
- * Kraken channel ID of the subscription
- *
- * @prop {Function} onEstablish
- * Used internally to resolve the subscribe-promise
- * when the ws responds with a success message
- *
- * @prop {Function} onFail
- * Used internally to reject the subscribe-promise
- * when the ws responds with an error message
- */
-
+export class KrakenWS {
 /**
  * I've used the proposal to use `typeof Class`
  * for some of the types. It is not official,
  * but it's being disucssed, see:
  * https://github.com/jsdoc/jsdoc/issues/1349
  *
- * @typedef {Object} Options
- * @prop {String} [url]
- * @prop {String} [token]
- * @prop {Int} [retryCount]
- * @prop {Int} [retryDelay]
- * @prop {typeof EventEmitter} EventEmitter
+ * @constructor
+ *
+ * @param {Object} options
+ *
+ * @param {String} options.url
+ * Public channels can not be subscribed to on the private channel
+ * and vice versa of course
+ *
+ * @param {Int} [options.retryCount]
+ * How many times the socket should try to reconnect.
+ *
+ * @param {Int} [options.retryDelay]
+ * Milliseconds between the retries
+ *
+ * @param {typeof EventEmitter} [options.EventEmitter]
  * Class to be instantiated as event handler
  * Must follow the api of the EventEmitter class
- * @prop {typeof WebSocket} WebSocket
+ *
+ * @prop {typeof WebSocket} [options.WebSocket]
  * Class to be instantiated as websocket instance
  * Must follow the api of the WebSocket class provided by the ws npm module
  */
-
-const DEFAULT_OPTIONS = {
-  url: 'wss://ws-auth.kraken.com',
-  retryCount: 5,
-  retryDelay: 1000, // ms
-  EventEmitter, // Event handler for composition
-  WebSocket, // web socket class
-}
-
-const isFlagged = (actual, expected) => (actual & expected) === expected
-const convertNamesToFlags = names => names.reduce(
-  (curFlags, name, index) => ({
-    ...curFlags,
-    [name]: 1 << (index + 1),
-  }),
-  {},
-)
-
-const flags = convertNamesToFlags([
-  'FLAG_NEVER_CONNECTED',
-  'FLAG_RECONNECTING',
-  'FLAG_CONNECTION_NO_ESTABLISH',
-  'FLAG_CONNECTION_BROKE',
-  'FLAG_MANUALLY_CLOSED',
-  'FLAG_CONNECTED',
-])
-
-flags.FLAG_CLOSED = flags.FLAG_CONNECTION_BROKE | flags.FLAG_MANUALLY_CLOSED | flags.FLAG_CONNECTION_NO_ESTABLISH
-
-exports.flags = flags
-
-/**
- * Auto-binds all methods so they can be used in functional contexts.
- * This class makes extensive use of the reqid parameter that kraken
- * accepts. If you want to use your own reqids, you have to provide
- * a reqid with every subscription you make.
- *
- * @class KrakenWS
- * @prop {bool} connected
- * @prop {Object} subscriptions
- */
-export class KrakenWS {
-  /**
-   * @param {Object} options
-   * @param {String} [options.url]
-   * @param {String} [options.token]
-   */
   constructor(options) {
     // "private" properties
     this._connection = null
     this._nextReqid = 0
     this._options = { ...DEFAULT_OPTIONS, ...options }
-    console.log('this._options', this._options);
 
     // composition over inheritance
     this._eventHandler = new this._options.EventEmitter()
+    this.socketMessageHandlers = [
+      handleUnhandled,
+      handleSystemStatus,
+      handleHeartbeat,
+      handlePong,
+    ]
 
     // public properties
-    this.connectionState = flags.FLAG_NEVER_CONNECTED
     this.subscriptions = {
-      ticker: {},
-      trade: {},
-      spread: {},
-      ohlc: {},
-      book: {},
-      ownTrades: false,
-      openOrders: false,
+      //ownTrades: false,
+      //openOrders: false,
     }
   }
 
@@ -126,39 +80,65 @@ export class KrakenWS {
     return () => this._eventHandler.removeListener(event, callback)
   }
 
+  isConnected = () => {
+    return !!this._connection
+  }
+
   /**
+   * @param {Int} retryCounter
+   * Does not need to be supplied, internal only
+   *
    * @return {Promise.<void>}
    */
-  connect = () => {
-    if (this.connected) {
+  connect = (retryCounter = 0) => {
+    if (this._connection) {
       return Promise.resolve(this._connection)
+    }
+
+    // do not continue if max retry count has been reached
+    const isRetrying = this._options.retryCount !== 0 && retryCounter !== 0
+    const hasReachedMaxRetryAmount = retryCounter === this._options.retryCount
+
+    if (isRetrying && hasReachedMaxRetryAmount) {
+      this._emit('kraken:connection:closed')
+      this._emit('kraken:connection:reconnecting:failure')
+      return
     }
 
     this._emit('kraken:connection:establishing')
 
-    return new Promise((resolve, reject) => {
-      const onSuccess = ws => {
-        this._emit('kraken:connection:established', { ws })
-        resolve(ws)
+    const onSuccess = ws => {
+      this._emit('kraken:connection:established', { ws })
+      resolve(ws)
+    }
+
+    const onFailure = error => {
+      this._emit('kraken:connection:failed', { error })
+      reject(e)
+    }
+
+    const onClose = () => {
+      // change state to reconnecting during first
+      if (this._options.retryCount === 0) {
+        this._connection = null
+        this._emit('kraken:connection:closed')
+        return
       }
 
-      const onFailure = error => {
-        this._emit('kraken:connection:failed', { error })
-        reject(e)
+      if (retryCounter === 0) {
+        this._emit('kraken:connection:reconnecting:start')
       }
 
-      const onClose = () => {
-        if (!this.connected) return
-        this.connected = false
-        this._retryConnecting(0)
-      }
+      this._retryTimeout()
+        .then(() => this.connect(retryCounter + 1))
+        .catch(() => {})
+    }
 
-      this._establishConnection({
-        onSuccess,
-        onClose,
-        onFailure,
-        onMessage: this._handleMessage
-      })
+    return this._establishConnection({
+      onSuccess,
+      onClose,
+      onFailure,
+      onMessage: this.handleMessage
     })
   }
 
@@ -166,57 +146,30 @@ export class KrakenWS {
    * @returns {Promise.<void>}
    */
   disconnect = () => {
-    if (!this.connected) return Promise.reject(`Connection already closed`)
+    // So we can interrup the retry process
+    this._emit('internal:connection:disconnected-manually')
 
-    this.connection.close()
+    // close connection if open
+    if (this._connection) {
+      this._connection.close()
 
-    return new Promise(resolve => {
-      const unsubscribe = this.on('kraken:connection:closed', () => {
-        unsubscribe()
-        resolve()
-      })
-    })
-  }
-
-  /**
-   * @param {Int} retryCounter
-   * @returns {void}
-   */
-  _retryConnecting = retryCounter => {
-    // do not continue if max retry count has been reached
-    if (retryCounter === this._options.retryCount) {
-      this._emit('kraken:connection:closed')
-      return
-    }
-
-    // change state to reconnecting during first
-    if (retryCounter === 0) {
-      this.connectionState = flags.FLAG_RECONNECTING
-      this._emit(
-        'kraken:connection:reconnecting',
-        { status: this.connectionState }
-      )
-    }
-
-    this._retryTimeout().then(
-      () =>
-        this._establishConnection({
-          onClose: () => this._emit('kraken:connection:closed'),
+      return new Promise(resolve => {
+        const unsubscribe = this.on('kraken:connection:closed', () => {
+          this._connection = null
+          unsubscribe()
+          resolve()
         })
-          .then(ws => this._emit('kraken:connection:established', { ws }))
-          .catch(() => this._retryConnecting(retryCount + 1))
-      ,
-      () => {
-        /* ignore as connection has been terminated manually */
-      }
-    )
+      })
+    }
+
+    return Promise.resolve()
   }
 
   _retryTimeout = () => new Promise((resolve, reject) => {
     let timeoutID
 
-    const unsubscribe = this.on('kraken:connection:closed', () => {
-      if (!this.connected) reject()
+    const unsubscribe = this.on('internal:connection:disconnected-manually', () => {
+      if (!this._connection) reject()
       unsubscribe()
       clearTimeout(timeoutID)
     })
@@ -232,297 +185,13 @@ export class KrakenWS {
    * @returns {void}
    */
   send = message => {
-    const payload = process.env.NODE_ENV === 'production'
-      ? JSON.stringify(message)
-      : JSON.stringify(message, null, 2)
+    if (!this._connection) {
+      throw new Error("You can't send a message without an established websocket connection")
+    }
 
+    const payload = JSON.stringify(message)
     this._connection.send(payload)
   }
-
-  /**
-   * @param {Object} options
-   * @param {String} options.pair
-   * @param {Int} [options.reqid]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToTicker = ({ pair, reqid }) =>
-    this.subscribePublic(pair, 'ticker', { reqid })
-
-  /**
-   * @param {Object} options
-   * @param {String[]} options.pairs
-   * @param {Int} [options.reqid]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToTickerMutliple = ({ pairs, reqid }) =>
-    this.subscribePublicMultiple(pairs, 'ticker', { reqid })
-
-  /**
-   * @param {Object} options
-   * @param {String} options.pair
-   * @param {Int} [options.reqid]
-   * @param {Int} [options.interval]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToOHLC = ({ pair, reqid, interval }) =>
-    this.subscribePublic(pair, 'ohlc', { reqid, interval })
-
-  /**
-   * @param {Object} options
-   * @param {String[]} options.pairs
-   * @param {Int} [options.reqid]
-   * @param {Int} [options.interval]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToOHLCMultiple = ({ pairs, reqid, interval }) =>
-    this.subscribePublicMultiple(pairs, 'ohlc', { reqid, interval })
-
-  /**
-   * @param {String} pair
-   * @param {Object} [options]
-   * @param {Int} [options.reqid]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToTrade = ({ pair, reqid }) =>
-    this.subscribePublic(pair, 'trade', { reqid })
-
-  /**
-   * @param {String[]} pair
-   * @param {Object} [options]
-   * @param {Int} [options.reqid]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToTradeMultiple = ({ pairs, reqid }) =>
-    this.subscribePublicMultiple(pairs, 'trade', { reqid })
-
-  /**
-   * @param {Object} options
-   * @param {String} options.pair
-   * @param {Int} [options.reqid]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToSpread = ({ pair, reqid }) =>
-    this.subscribePublic(pair, 'spread', { reqid })
-
-  /**
-   * @param {Object} options
-   * @param {String[]} options.pairs
-   * @param {Int} [options.reqid]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToSpreadMultiple = ({ pairs, reqid }) =>
-    this.subscribePublicMultiple(pairs, 'spread', { reqid })
-
-  /**
-   * @param {Object} options
-   * @param {String} options.pair
-   * @param {Int} [options.reqid]
-   * @param {Int} [options.depth]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToBook = ({ pair, reqid, depth }) =>
-    this.subscribePublic(pair, 'book', { reqid, depth })
-
-  /**
-   * @param {Object} options
-   * @param {String[]} options.pairs
-   * @param {Int} [options.reqid]
-   * @param {Int} [options.depth]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToBookMultiple = ({ pairs, reqid, depth }) =>
-    this.subscribePublicMultiple(pairs, 'book', { reqid, depth })
-
-  /**
-   * @param {Object} options
-   * @param {Int} [options.reqid]
-   * @param {Bool} [options.snapshot]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToOwnTrades = ({ reqid, snapshot } = {}) =>
-    this.subscribePrivate('ownTrades', { reqid, snapshot, token: this._options.token })
-
-  /**
-   * @param {Object} options
-   * @param {Int} [options.reqid]
-   * @returns {Promise.<bool>}
-   */
-  subscribeToOpenOrders = ({ reqid } = {}) =>
-    this.subscribePrivate('openOrders', { reqid, token: this._options.token })
-
-  /**
-   * @param {String[]|String} pair
-   * @param {String} name
-   * @param {Object} [options]
-   * @param {Int} [options.reqid]
-   * @param {Int} [options.depth]
-   * @param {Int} [options.interval]
-   * @param {bool} [options.snapshot]
-   * @param {String} [options.token]
-   * @returns {Promise.<bool>}
-   */
-  subscribePublic = (pair, name, options) => this._withConnection(() => {
-    if (!name) return Promise.reject(
-      "You need to provide 'name' when subscribing"
-    )
-
-    if (!pair) return Promise.reject(
-      "You need to provide 'pair' when subscribing"
-    )
-
-    if (!isValidPublicName(name)) return Promise.reject(
-      `Invalid name. Valid names are: 'ticker', 'ohlc', 'trade', 'spread', 'book'. Received '${name}'`
-    )
-
-    const { reqid, depth, interval, snapshot, token } = options
-    const alreadySubscribed = this.subscriptions[name][pair] && pair
-
-    if (alreadySubscribed) return Promise.reject({
-      errorMessage: 'already subscribed',
-      pair: alreadySubscribed,
-      name,
-    })
-
-    const nextReqid = reqid || this._nextReqid++
-    const response = this.send({
-      pair: [pair],
-      event: 'subscribe',
-      reqid: nextReqid,
-      subscription: { name, depth, interval, snapshot },
-    })
-
-    const checker = payload => payload.reqid === nextReqid && payload.pair === pair
-    return this._handleSubscription(checker)
-      .then(payload => {
-        this.subscriptions[name][pair] = payload.channelID
-
-        return {
-          ...payload,
-          unsubscribe: () => this.unsubscribe({ pair, name, options })
-        }
-      })
-  })
-
-  /**
-   * @param {String[]} pairs
-   * @param {String} name
-   * @param {Object} [options]
-   * @param {Int} [options.reqid]
-   * @param {Int} [options.depth]
-   * @param {Int} [options.interval]
-   * @param {bool} [options.snapshot]
-   * @returns {Promise.<bool>}
-   */
-  subscribePublicMultiple = (pairs, name, options) => this._withConnection(() => {
-    const { reqid, depth, interval, snapshot } = options
-
-    if (!name) return Promise.reject(
-      "You need to provide 'name' when subscribing"
-    )
-
-    if (!pairs || !pairs.length) return Promise.reject(
-      "You need to provide 'pairs' of type String[] when subscribing"
-    )
-
-    if (!isValidPublicName(name)) return Promise.reject(
-      `Invalid name. Valid names are: 'ticker', 'ohlc', 'trade', 'spread', 'book'. Received '${name}'`
-    )
-
-    const alreadySubscribed = pairs.reduce(
-      (found, _, pair) => {
-        if (found) return found
-        return this.subscriptions[name][pair] ? pair : found
-      },
-      ''
-    )
-
-    if (alreadySubscribed) return Promise.reject({
-      errorMessage: 'already subscribed',
-      pair: alreadySubscribed,
-      name,
-    })
-
-    const nextReqid = reqid || this._nextReqid++
-    const response = this.send({
-      event: 'subscribe',
-      pair: pairs,
-      reqid: nextReqid,
-      subscription: { name, depth, interval, snapshot },
-    })
-
-    return Promise.all(
-      pairs.map(curPair => {
-        const checker = payload => payload.reqid === nextReqid && payload.pair === curPair
-
-        return this._handleSubscription(checker)
-          .then(payload => {
-            this.subscriptions[name][curPair] = payload.channelID
-            return payload
-          })
-          // will be handles in the next `.then` step
-          // We just need to make sure they're not added to `this.subscriptions`
-          .catch(payload => {
-            return payload
-          })
-      })
-    ).then(
-      /*
-       * This will divide the responses into successful and failed responses.
-       * If none of the subscriptions was successful, the promise will reject
-       */
-      responses => {
-        const successfulResponses = responses.filter(response => !response.errorMessage)
-        const failureResponses = responses.filter(response => !!response.errorMessage)
-
-        if (!successfulResponses.length) {
-          return Promise.reject(responses)
-        }
-
-        return {
-          success: successfulResponses,
-          failure: failureResponses,
-          unsubscribe: () => this.unsubscribeMultiple({ pairs, name, options }),
-        }
-      }
-    )
-  })
-
-  /**
-   * @param {String} name
-   * @param {Object} options
-   * @param {String} options.token
-   * @param {Int} [options.reqid]
-   * @param {bool} [options.snapshot]
-   * @returns {Promise.<bool>}
-   */
-  subscribePrivate = (name, { token, reqid, snapshot }) => this._withConnection(() => {
-    if (!name) return Promise.reject(
-      'You need to provide "name" when subscribing'
-    )
-
-    if (!token) return Promise.reject(
-      'You need to provide "options.token" when subscribing'
-    )
-
-    if (!isValidPrivateName(name)) return Promise.reject(
-      `Invalid name. Valid names are: 'ownTrades', 'openOrders'. Received '${name}'`
-    )
-
-    if (this.subscriptionsPrivate[name]) return Promise.reject(`You've already subscribed to "${name}"`)
-
-    const nextReqid = reqid || this._nextReqid++
-    this.send({
-      event: 'subscribe',
-      reqid: nextReqid,
-      subscription: { name, token, reqid },
-    })
-
-    const checker = payload => payload.reqid === nextReqid
-    return this._handleSubscription(checker).then(payload => {
-      this.subscriptions[name] = true
-      return payload
-    })
-  })
 
   _handleSubscription = checker => new Promise((resolve, reject) => {
     let unsubscribeSuccess, unsubscribeFailure
@@ -539,64 +208,64 @@ export class KrakenWS {
     unsubscribeFailure = this.on('kraken:subscribe:failure', onResponse(reject))
   })
 
-  /**
-   * @param {Object} args
-   * @param {String} args.name
-   * @param {String} [args.pair]
-   * @param {Int} [args.reqid]
-   * @param {Object} [args.options]
-   * @param {Int} [args.options.depth]
-   * @param {Int} [args.options.interval]
-   * @param {String} [args.options.token]
-   * @returns {Promise.<bool>}
-   */
-  unsubscribe = ({ pair, name, reqid, options }) => this._withConnection(() => {
-    if (!name)
-      return Promise.reject('You need to provide "name" when subscribing')
+  _handleUnsubscription = checker => new Promise((resolve, reject) => {
+    let unsubscribeSuccess, unsubscribeFailure
 
-    const isPublic = isValidPublicName(name)
+    const onResponse = handler => payload => {
+      if (!checker(payload)) return
 
-    if (isPublic && !pair)
-      return Promise.reject('You need to provide "pair" when unsubscribing')
+      unsubscribeSuccess()
+      unsubscribeFailure()
+      handler(payload)
+    }
 
-    //if (isPublic && !this.subscriptions[name][pair])
-    //  return Promise.reject(`You have not subscribed to "${name}" with pair "${pair}"`)
-
-    const nextReqid = reqid || this._nextReqid++
-    const response = this.send({
-      event: 'unsubscribe',
-      reqid: nextReqid,
-      subscription: { name, ...options },
-      ...(isPublic ? { pair: [pair] } : {}),
-    })
-
-    const checker = payload =>
-      payload.reqid === nextReqid &&
-      // XOR; Either no pair has been provided or
-      // the provided pair matches the event's pair
-      !pair ^ payload.pair === pair
-
-    return this._handleUnsubscription(checker)
-      .then(payload => {
-        delete this.subscriptions[name][pair]
-        return payload
-      })
+    unsubscribeSuccess = this.on('kraken:unsubscribe:success', onResponse(resolve))
+    unsubscribeFailure = this.on('kraken:unsubscribe:failure', onResponse(reject))
   })
 
-  /**
-   * @param {Object} args
-   * @param {String[]} args.pairs
-   * @param {String} args.name
-   * @param {Int} [args.reqid]
-   * @param {Object} [args.options]
-   * @param {Int} [args.options.depth]
-   * @param {Int} [args.options.interval]
-   * @param {String} [args.options.token]
-   * @returns {Promise.<bool>}
-   */
-  unsubscribeMultiple = ({ pairs, name, reqid, options }) => this._withConnection(() => {
+  // /**
+  //  * @param {Object} args
+  //  * @param {String} args.name
+  //  * @param {String} [args.pair]
+  //  * @param {Int} [args.reqid]
+  //  * @param {Object} [args.options]
+  //  * @param {Int} [args.options.depth]
+  //  * @param {Int} [args.options.interval]
+  //  * @param {String} [args.options.token]
+  //  * @returns {Promise.<bool>}
+  //  */
+  // unsubscribe = ({ pair, name, reqid, options }) => this._withConnection(() => {
+  //   if (!name)
+  //     return Promise.reject('You need to provide "name" when subscribing')
 
-  })
+  //   const isPublic = isValidPublicName(name)
+
+  //   if (isPublic && !pair)
+  //     return Promise.reject('You need to provide "pair" when unsubscribing')
+
+  //   //if (isPublic && !this.subscriptions[name][pair])
+  //   //  return Promise.reject(`You have not subscribed to "${name}" with pair "${pair}"`)
+
+  //   const nextReqid = reqid || this._nextReqid++
+  //   const response = this.send({
+  //     event: 'unsubscribe',
+  //     reqid: nextReqid,
+  //     subscription: { name, ...options },
+  //     ...(isPublic ? { pair: [pair] } : {}),
+  //   })
+
+  //   const checker = payload =>
+  //     payload.reqid === nextReqid &&
+  //     // XOR; Either no pair has been provided or
+  //     // the provided pair matches the event's pair
+  //     !pair ^ payload.pair === pair
+
+  //   return this._handleUnsubscription(checker)
+  //     .then(payload => {
+  //       delete this.subscriptions[name][pair]
+  //       return payload
+  //     })
+  // })
 
   _handleUnsubscription = checker => new Promise((resolve, reject) => {
     let unsubscribeSuccess, unsubscribeFailure
@@ -634,117 +303,98 @@ export class KrakenWS {
    * @param {string} e
    * @returns {void}
    */
-  handleMessage = e => {
+  handleMessage = event => {
     let payload
 
     try {
-      payload = JSON.parse(e.data);
-    } catch (e) {
+      payload = JSON.parse(event.data);
+    } catch (event) {
       return this._emit('kraken:error', {
         errorMessage: 'Error parsing the payload',
-        data: e.data,
-        error: e,
+        data: event.data,
+        error: event,
       })
     }
 
-    if (!(payload instanceof Object)) {
-      return this._emit('kraken:error', {
-        errorMessage:
-          `Payload received from kraken is not handled. Received "${payload}"`,
-        data: e.data,
-        error: e,
-      })
+    const allEmits = this.socketMessageHandlers.reduce(
+      (emitting, inQuestion) => {
+        const emits = inQuestion({
+          payload,
+          event,
+          subscriptions: this.subscriptions,
+        })
+
+        if (!emits) return emitting
+
+        if (Array.isArray(emits)) {
+          return [...emitting, ...emits]
+        }
+
+        return [...emitting, emits]
+      },
+      []
+    )
+
+    allEmits.forEach(({ name, payload }) => this._emit(name, payload))
+
+    // if (
+    //   payload.event === 'subscriptionStatus' &&
+    //   payload.status === 'subscribed'
+    // ) {
+    //   return this._emit('kraken:subscribe:success', payload)
+    // }
+
+    // if (
+    //   isValidPrivateName(payload.subscription.name) &&
+    //   payload.event === 'subscriptionStatus' &&
+    //   payload.status === 'error' &&
+    //   // no registered subscription -> trying to subscribe
+    //   !this.subscriptions[payload.subscription.name]
+    // ) {
+    //   return this._emit('kraken:subscribe:failure', payload)
+    // }
+
+    // if (
+    //   payload.event === 'subscriptionStatus' &&
+    //   payload.status === 'unsubscribed'
+    // ) {
+    //   return this._emit('kraken:unsubscribe:success', payload)
+    // }
+
+    // if (
+    //   isValidPrivateName(payload.subscription.name) &&
+    //   payload.event === 'subscriptionStatus' &&
+    //   payload.status === 'error' &&
+    //   // registered subscription -> trying to unsubscribe
+    //   this.subscriptions[payload.subscription.name]
+    // ) {
+    //   return this._emit('kraken:unsubscribe:failure', payload)
+    // }
+
+    if (!allEmits.length) {
+      this._emit('kraken:unhandled', payload)
     }
-
-    if (payload.event === 'systemStatus') {
-      return this._emit('kraken:systemStatus', payload)
-    } else if (payload.event === 'heartbeat') {
-      return this._emit('kraken:heartbeat')
-    }
-
-    if (payload.event === 'pong') {
-      return this._emit('kraken:pong', payload)
-    }
-
-    if (
-      payload.event === 'subscriptionStatus' &&
-      payload.status === 'subscribed'
-    ) {
-      return this._emit('kraken:subscribe:success', payload)
-    }
-
-    if (
-      isValidPrivateName(payload.subscription.name) &&
-      payload.event === 'subscriptionStatus' &&
-      payload.status === 'error' &&
-      // no registered subscription -> trying to subscribe
-      !this.subscriptions[payload.subscription.name]
-    ) {
-      return this._emit('kraken:subscribe:failure', payload)
-    }
-
-    if (
-      payload.event === 'subscriptionStatus' &&
-      payload.status === 'error' &&
-      // no registered subscription -> trying to subscribe
-      !this.subscriptions[payload.subscription.name][payload.pair]
-    ) {
-      return this._emit('kraken:subscribe:failure', payload)
-    }
-
-    if (
-      payload.event === 'subscriptionStatus' &&
-      payload.status === 'unsubscribed'
-    ) {
-      return this._emit('kraken:unsubscribe:success', payload)
-    }
-
-    if (
-      isValidPrivateName(payload.subscription.name) &&
-      payload.event === 'subscriptionStatus' &&
-      payload.status === 'error' &&
-      // registered subscription -> trying to unsubscribe
-      this.subscriptions[payload.subscription.name]
-    ) {
-      return this._emit('kraken:unsubscribe:failure', payload)
-    }
-
-    if (
-      payload.event === 'subscriptionStatus' &&
-      payload.status === 'error' &&
-      // registered subscription -> trying to unsubscribe
-      this.subscriptions[payload.subscription.name][payload.pair]
-    ) {
-      return this._emit('kraken:unsubscribe:failure', payload)
-    }
-
-    if (Array.isArray(payload) && Number.isInteger(payload[0])) {
-      const event = {
-        channelID: payload[0],
-        data: payload[1],
-        name: payload[2],
-        pair: payload[3],
-      }
-
-      return this._emit('kraken:subscription:event', event)
-    }
-
-    return this._emit('kraken:unhandled', payload)
   }
 
   _establishConnection = ({ onClose }) => new Promise((resolve, reject) => {
     const ws = new this._options.WebSocket(this._options.url)
-    this._connection = ws
-    console.log('this._connection', this._connection);
+    this._connection = null
 
-    ws.onopen = () => resolve(ws)
-    ws.onerror = reject(error)
+    ws.onopen = () => {
+      this._connection = ws
+      resolve(ws)
+    }
+
+    ws.onerror = error => {
+      reject(error)
+    }
+
     ws.onclose = () => {
-      if (this.connected) return
-      this.connected = false
+      if (!this._connection) return
+      this._connection = null
       onClose && onClose()
     }
 
-    ws.onmessage = this._handleMessage
+    ws.onmessage = this.handleMessage
   })
 }
