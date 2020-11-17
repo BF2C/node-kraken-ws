@@ -1,6 +1,6 @@
 {
   "name": "node-kraken-ws",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "A websocket library for the kraken exchange",
   "main": "build/index.js",
   "sideEffects": false,
@@ -8,6 +8,10 @@
   "private": false,
   "publishConfig": {
     "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mohammer5/node-kraken-ws.git"
   },
   "scripts": {
     "test": "jest",

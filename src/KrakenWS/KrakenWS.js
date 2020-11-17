@@ -337,40 +337,6 @@ export class KrakenWS {
 
     allEmits.forEach(({ name, payload }) => this._emit(name, payload))
 
-    // if (
-    //   payload.event === 'subscriptionStatus' &&
-    //   payload.status === 'subscribed'
-    // ) {
-    //   return this._emit('kraken:subscribe:success', payload)
-    // }
-
-    // if (
-    //   isValidPrivateName(payload.subscription.name) &&
-    //   payload.event === 'subscriptionStatus' &&
-    //   payload.status === 'error' &&
-    //   // no registered subscription -> trying to subscribe
-    //   !this.subscriptions[payload.subscription.name]
-    // ) {
-    //   return this._emit('kraken:subscribe:failure', payload)
-    // }
-
-    // if (
-    //   payload.event === 'subscriptionStatus' &&
-    //   payload.status === 'unsubscribed'
-    // ) {
-    //   return this._emit('kraken:unsubscribe:success', payload)
-    // }
-
-    // if (
-    //   isValidPrivateName(payload.subscription.name) &&
-    //   payload.event === 'subscriptionStatus' &&
-    //   payload.status === 'error' &&
-    //   // registered subscription -> trying to unsubscribe
-    //   this.subscriptions[payload.subscription.name]
-    // ) {
-    //   return this._emit('kraken:unsubscribe:failure', payload)
-    // }
-
     if (!allEmits.length) {
       this._emit('kraken:unhandled', payload)
     }
