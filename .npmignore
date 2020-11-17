@@ -2,3 +2,6 @@ node_modules
 src
 test/index.js
 playground
+babel.config.js
+rollup.config.js
+.env

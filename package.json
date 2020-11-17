@@ -1,6 +1,6 @@
 {
   "name": "node-kraken-ws",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "A websocket library for the kraken exchange",
   "main": "build/index.js",
   "sideEffects": false,
@@ -17,8 +17,8 @@
     "test": "jest",
     "build": "NODE_ENV=production rollup src/index.js --file build/index.js --format cjs --compact",
     "watch": "rollup src/index.js --file build/index.js --format cjs --watch",
-    "playground": "babel-node --config-file ./babel.config.js",
-    "foo": "babel-node playground/subAndUnsubOwnTrades.js"
+    "release": "npm run build && npm publish --access public",
+    "playground": "babel-node --config-file ./babel.config.js"
   },
   "keywords": [],
   "license": "BSD-3-Clause",
