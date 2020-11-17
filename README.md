@@ -1,6 +1,9 @@
 # node-kraken-ws
 
-This is a kraken websocket implementation
+This is a kraken websocket implementation written by some rando on the
+internet.
+
+Tests have not been implemented yet and the docs are still incomplete.
 
 * [How to use](#how-to-use)
   * [Subscribing](#subscribing)
