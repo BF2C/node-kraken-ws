@@ -13,6 +13,7 @@ Tests have not been implemented yet and the docs are still incomplete.
   * [Public channel methods](#public-channel-methods)
 * [Private channels](#private-channels)
   * [Private channel methods](#private-channel-methods)
+  * [Private order methods](#private-order-methods)
 
 ## How to use
 
@@ -218,6 +219,84 @@ const ws = new KrakenWSPrivate({ /* pass options */ })
 #### subscribeToOpenOrders
 
 ##### Arguments
+
+| arguments | type | required | default value |
+|-----------|------|----------|---------------|
+| reqid | Int | no | / |
+
+### Private order methods
+
+#### addOrder
+
+| arguments | type | required | default value |
+|-----------|------|----------|---------------|
+| ordertype | String | yes | / |
+| type | String | yes | / |
+| pair | String | yes | / |
+| volume | Float | yes | / |
+| reqid | Int | no | / |
+| price | Float | no | / |
+| price2 | Float | no | / |
+| reqid | Int | no | / |
+| leverage | Float | no | / |
+| oflags | String | no | / |
+| starttm | String | no | / |
+| expiretm | String | no | / |
+| userref | String | no | / |
+| validate | String | no | / |
+| close | Object | no | / |
+| close.ordertype | String | no | / |
+| close.price | Float | no | / |
+| close.price2 | Float | no | / |
+| trading_agreement | String | no | / |
+
+##### Returns
+
+Promise
+
+##### Resolves with:
+
+```js
+{
+  event: String
+  reqid: Int
+  status: "ok" | "error"
+  txid?: String
+  descr?: String
+}
+```
+
+##### Rejects with:
+
+```js
+{
+  event: String
+  reqid: Int
+  status: "ok" | "error"
+  errorMessage?: String
+}
+```
+
+#### cancelOrder
+
+| arguments | type | required | default value |
+|-----------|------|----------|---------------|
+| txid | String \| String[] | yes | / |
+| reqid | Int | no | / |
+
+##### Returns*:
+
+Promise
+
+##### Resolves with:
+
+`void`
+
+##### Rejects with
+
+`void`
+
+#### cancelAll
 
 | arguments | type | required | default value |
 |-----------|------|----------|---------------|

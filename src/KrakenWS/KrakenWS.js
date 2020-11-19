@@ -134,12 +134,7 @@ export class KrakenWS {
         .catch(() => {})
     }
 
-    return this._establishConnection({
-      onSuccess,
-      onClose,
-      onFailure,
-      onMessage: this.handleMessage
-    })
+    return this._establishConnection({ onClose })
   }
 
   /**
@@ -192,95 +187,6 @@ export class KrakenWS {
     const payload = JSON.stringify(message)
     this._connection.send(payload)
   }
-
-  _handleSubscription = checker => new Promise((resolve, reject) => {
-    let unsubscribeSuccess, unsubscribeFailure
-
-    const onResponse = handler => payload => {
-      if (!checker(payload)) return
-
-      unsubscribeSuccess()
-      unsubscribeFailure()
-      handler(payload)
-    }
-
-    unsubscribeSuccess = this.on('kraken:subscribe:success', onResponse(resolve))
-    unsubscribeFailure = this.on('kraken:subscribe:failure', onResponse(reject))
-  })
-
-  _handleUnsubscription = checker => new Promise((resolve, reject) => {
-    let unsubscribeSuccess, unsubscribeFailure
-
-    const onResponse = handler => payload => {
-      if (!checker(payload)) return
-
-      unsubscribeSuccess()
-      unsubscribeFailure()
-      handler(payload)
-    }
-
-    unsubscribeSuccess = this.on('kraken:unsubscribe:success', onResponse(resolve))
-    unsubscribeFailure = this.on('kraken:unsubscribe:failure', onResponse(reject))
-  })
-
-  // /**
-  //  * @param {Object} args
-  //  * @param {String} args.name
-  //  * @param {String} [args.pair]
-  //  * @param {Int} [args.reqid]
-  //  * @param {Object} [args.options]
-  //  * @param {Int} [args.options.depth]
-  //  * @param {Int} [args.options.interval]
-  //  * @param {String} [args.options.token]
-  //  * @returns {Promise.<bool>}
-  //  */
-  // unsubscribe = ({ pair, name, reqid, options }) => this._withConnection(() => {
-  //   if (!name)
-  //     return Promise.reject('You need to provide "name" when subscribing')
-
-  //   const isPublic = isValidPublicName(name)
-
-  //   if (isPublic && !pair)
-  //     return Promise.reject('You need to provide "pair" when unsubscribing')
-
-  //   //if (isPublic && !this.subscriptions[name][pair])
-  //   //  return Promise.reject(`You have not subscribed to "${name}" with pair "${pair}"`)
-
-  //   const nextReqid = reqid || this._nextReqid++
-  //   const response = this.send({
-  //     event: 'unsubscribe',
-  //     reqid: nextReqid,
-  //     subscription: { name, ...options },
-  //     ...(isPublic ? { pair: [pair] } : {}),
-  //   })
-
-  //   const checker = payload =>
-  //     payload.reqid === nextReqid &&
-  //     // XOR; Either no pair has been provided or
-  //     // the provided pair matches the event's pair
-  //     !pair ^ payload.pair === pair
-
-  //   return this._handleUnsubscription(checker)
-  //     .then(payload => {
-  //       delete this.subscriptions[name][pair]
-  //       return payload
-  //     })
-  // })
-
-  _handleUnsubscription = checker => new Promise((resolve, reject) => {
-    let unsubscribeSuccess, unsubscribeFailure
-
-    const onResponse = handler => payload => {
-      if (!checker(payload)) return
-
-      unsubscribeSuccess()
-      unsubscribeFailure()
-      handler(payload)
-    }
-
-    unsubscribeSuccess = this.on('kraken:unsubscribe:success', onResponse(resolve))
-    unsubscribeFailure = this.on('kraken:unsubscribe:failure', onResponse(reject))
-  })
 
   /**
    * @param {Object} [options]
@@ -362,5 +268,55 @@ export class KrakenWS {
     }
 
     ws.onmessage = this.handleMessage
+  })
+
+  _handleSubscription = checker => this
+    ._handleOneTimeMessageResponse(
+      checker,
+      'kraken:subscribe:success',
+      'kraken:subscribe:failure',
+    )
+    .then(response => ({
+      ...response,
+      unsubscribe: () => this.unsubscribe({
+        name: repsonse.subscription.name,
+      })
+    }))
+
+  _handleUnsubscription = checker => this._handleOneTimeMessageResponse(
+    checker,
+    'kraken:unsubscribe:success',
+    'kraken:unsubscribe:failure',
+  )
+
+  _handleOneTimeMessageResponse = (checker, successEvent, failureEvent) =>
+    new Promise((resolve, reject) => {
+      let unsubscribeSuccess, unsubscribeFailure
+
+      const onResponse = handler => payload => {
+        if (!checker(payload)) return
+
+        unsubscribeSuccess()
+        unsubscribeFailure()
+        handler(payload)
+      }
+
+      unsubscribeSuccess = this.on(successEvent, onResponse(resolve))
+      unsubscribeFailure = this.on(failureEvent, onResponse(reject))
+    })
+
+  _handleUnsubscription = checker => new Promise((resolve, reject) => {
+    let unsubscribeSuccess, unsubscribeFailure
+
+    const onResponse = handler => payload => {
+      if (!checker(payload)) return
+
+      unsubscribeSuccess()
+      unsubscribeFailure()
+      handler(payload)
+    }
+
+    unsubscribeSuccess = this.on('kraken:unsubscribe:success', onResponse(resolve))
+    unsubscribeFailure = this.on('kraken:unsubscribe:failure', onResponse(reject))
   })
 }
