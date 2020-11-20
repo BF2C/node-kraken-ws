@@ -8,10 +8,11 @@ Tests have not been implemented yet and the docs are still incomplete.
 * [How to use](#how-to-use)
   * [Subscribing](#subscribing)
   * [Listening to events](#listening-to-events)
-    * [List of events](#list-of-events)
+    * [List of shared events](#list-of-shared-events)
 * [Public channels](#public-channels)
   * [Public channel methods](#public-channel-methods)
 * [Private channels](#private-channels)
+  * [List of private events](#list-of-private-events)
   * [Private channel methods](#private-channel-methods)
   * [Private order methods](#private-order-methods)
 
@@ -42,15 +43,19 @@ const instance = new KrakenWS/*Public|Private*/({ /* ... */ })
 const removeListener = instance.on('eventname', eventHandler)
 ```
 
-#### List of events
+#### List of shared events
 
 ##### kraken:connection:closed
 
-/
+```ts
+void
+```
 
 ##### kraken:connection:establishing
 
-/
+```ts
+void
+```
 
 ##### kraken:connection:established
 
@@ -58,39 +63,61 @@ const removeListener = instance.on('eventname', eventHandler)
 
 ##### kraken:connection:failed
 
-`{ error: Error }`
+```ts
+{
+  error: Error
+}
+```
 
 ##### kraken:connection:reconnecting:start
 
-/
+```ts
+void
+```
 
 ##### kraken:connection:reconnecting:failure
 
-/
+```ts
+void
+```
 
 ##### kraken:subscribe:success
 
-`{}`
+See [subscriptionStatus](https://docs.kraken.com/websockets/#message-subscriptionStatus)
+The response of the kraken websocket is just forwarded
+The payload additionally has a `unsubscribe` property, which can be used to
+unsubscribe to the channel.
+
+```ts
+{
+  // ... the standard payload provided by kraken's websocket
+  unsubscribe: () => void
+}
+```
 
 ##### kraken:subscribe:failure
 
-`{}`
+See [subscriptionStatus](https://docs.kraken.com/websockets/#message-subscriptionStatus)
+The response of the kraken websocket is just forwarded
 
 ##### kraken:unsubscribe:success
 
-`{}`
+`void`
 
 ##### kraken:unsubscribe:failure
 
-`{}`
+@TODO
 
 ##### kraken:subscription:event
 
-`{}`
+See [Kraken Websocket api](https://docs.kraken.com/websockets/#message-ticker).
+The response of the kraken websocket is just forwarded
 
 ##### kraken:unhandled
 
-`{}`
+```ts
+Object.<string, any>
+```
 
 ## Public channels
 
@@ -203,6 +230,44 @@ import { KrakenWSPrivate } from 'node-kraken-ws'
 
 const ws = new KrakenWSPrivate({ /* pass options */ })
 ```
+
+### List of private events
+
+##### kraken:addorder:success
+
+See the [response
+payload](https://docs.kraken.com/websockets/#message-addOrder) of the addOrder
+message
+
+##### kraken:addorder:failure
+
+See the [response
+payload](https://docs.kraken.com/websockets/#message-addOrder) of the addOrder
+message
+
+##### kraken:cancelorder:success
+
+See the [response
+payload](https://docs.kraken.com/websockets/#message-cancelOrder) of the addOrder
+message
+
+##### kraken:cancelorder:failure
+
+See the [response
+payload](https://docs.kraken.com/websockets/#message-cancelOrder) of the addOrder
+message
+
+##### kraken:cancelall:success
+
+See the [response
+payload](https://docs.kraken.com/websockets/#message-cancelAll) of the addOrder
+message
+
+##### kraken:cancelall:failure
+
+See the [response
+payload](https://docs.kraken.com/websockets/#message-cancelAll) of the addOrder
+message
 
 ### Private channel methods:
 
