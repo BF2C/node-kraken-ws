@@ -56,8 +56,8 @@ export class KrakenWSPrivate extends KrakenWS {
 
     this.subscriptions = {
       ...this.subscriptions,
-      ownTrades: false,
-      openOrders: false,
+      ownTrades: null,
+      openOrders: null,
     }
 
     this.socketMessageHandlers = [
@@ -74,6 +74,28 @@ export class KrakenWSPrivate extends KrakenWS {
       handleUnsubscriptionError,
       handleUnsubscriptionSuccess,
     ]
+  }
+
+  resubscribe = () => {
+    super.resubscribe()
+
+    if (this.subscriptions.ownTrades) {
+      this.log({
+        message: 'Resubscribe "ownTrades"',
+        additional: { name: 'ownTrades', options },
+      })
+
+      this.subscribeToOwnTrades(this.subscriptions.ownTrades)
+    }
+
+    if (this.subscriptions.openOrders) {
+      this.log({
+        message: 'Resubscribe "openOrders"',
+        additional: { name: 'ownTrades', options },
+      })
+
+      this.subscribeToOpenOrders(this.subscriptions.openOrders)
+    }
   }
 
   /**
@@ -106,29 +128,38 @@ export class KrakenWSPrivate extends KrakenWS {
    *  errorMessage,
    * }>}
    */
-  addOrder = ({
-    ordertype,
-    type,
-    pair,
-    volume,
-    price,
-    price2,
-    reqid,
-    leverage,
-    oflags,
-    starttm,
-    expiretm,
-    userref,
-    validate,
-    trading_agreement,
-    close,
-  }) => {
+  addOrder = sendOrderData => {
+    const {
+      ordertype,
+      type,
+      pair,
+      volume,
+      price,
+      price2,
+      reqid,
+      leverage,
+      oflags,
+      starttm,
+      expiretm,
+      userref,
+      validate,
+      trading_agreement,
+      close,
+    } = sendOrderData
+
     const { token } = this._options
+
+    this.log({
+      message: 'addOrder :: start',
+      additional: { token, payload: sendOrderData },
+    })
+
     const {
       ordertype: closeOrdertype,
       price: closePrice,
       price2: closePrice2,
     } = close || {}
+
     const nextReqid = reqid || this._nextReqid++
 
     this.send({
@@ -155,11 +186,161 @@ export class KrakenWSPrivate extends KrakenWS {
       trading_agreement,
     })
 
-    return this._handleOneTimeMessageResponse(
-      payload => payload.reqid === nextReqid,
-      'kraken:addorder:success',
-      'kraken:addorder:failure',
-    )
+    return new Promise((resolve, reject) => {
+      let txid
+      let unsubscribeAddSuccess
+      let unsubscribeAddFailure
+      let unsubscribeOrderData
+
+      const orders = {}
+      const unsubscribe = () => {
+        unsubscribeAddSuccess()
+        unsubscribeAddFailure()
+        unsubscribeOrderData()
+      }
+
+      this.subscribeToOpenOrders().catch(/* noop */ () => null)
+
+      unsubscribeAddSuccess = this.on('kraken:addorder:success', payload => {
+        if (payload.reqid !== nextReqid) return 
+
+        txid = payload.txid
+
+        if (orders[txid] && orders[txid].status === 'open') {
+          this.log({
+            message: 'addOrder :: event success',
+            additional: { payload },
+          })
+
+          resolve(orders[txid])
+          unsubscribe()
+        } else {
+          this.log({
+            message: 'addOrder :: event success but not open',
+            additional: { payload },
+          })
+        }
+      })
+
+      unsubscribeOrderData = this.on('kraken:subscription:event', payload => {
+        if (payload[1] !== 'openOrders') return 
+
+        const data = payload[0].reduce(
+          (curData, curContainer) => ({
+            ...curData,
+            ...curContainer,
+          }),
+          {}
+        )
+
+        Object.keys(data).forEach(key => {
+          if (data[key].status === 'canceled') {
+            delete data[key]
+          }
+        })
+
+        this.log({
+          message: 'addOrder :: openOrders subscription event',
+          additional: { raw: payload, formatted: data },
+        })
+
+        Object.entries(data).forEach(([key, value]) => {
+          if (value.status === 'pending') {
+            this.log({
+              message: 'addOrder :: openOrders subscription event - Setting data of pending order',
+              additional: { key, value },
+            })
+
+            orders[key] = value
+          }
+        })
+
+        if (!txid) {
+          Object.entries(data).forEach(([key, value]) => {
+            if (!orders[key]) {
+              this.log({
+                message: '@TODO: Something went wrong here!',
+                additional: { orders, data },
+              })
+            }
+
+            const ordersKeyDescr = orders[key] && orders[key].descr ?  orders[key].descr : null
+            const valueDesc = value.descr ? value.descr : null
+
+            const curOrderData = {
+              txid: key,
+              ...orders[key],
+              ...value,
+              ...(ordersKeyDescr || valueDesc ? {
+                descr: {
+                  ...(ordersKeyDescr || {}),
+                  ...(valueDesc || {}),
+                },
+              } : {}),
+            }
+
+            this.log({
+              message: 'addOrder :: openOrders subscription event - No txid yet; adding data',
+              additional: { key, value: curOrderData },
+            })
+
+            if (value.status === 'open') {
+              orders[key] = curOrderData
+            }
+          })
+
+          return
+        }
+
+        if (!data[txid]) {
+          this.log({
+            message: 'addOrder :: openOrders subscription event - No order with txid yet',
+            additional: { raw: payload, formatted: data, orders },
+          })
+
+          return
+        }
+
+        if (data[txid].status !== 'open') {
+          this.log({
+            message: 'addOrder :: openOrders subscription event - Ignoring non-open payloads',
+            additional: { raw: payload, formatted: data, orders },
+          })
+
+          return
+        }
+
+        const actualOrder = orders[txid] ? {
+          txid,
+          ...orders[txid],
+          ...data[txid],
+          descr: {
+            ...orders[txid].descr,
+            ...(data[txid].descr ? data[txid].descr : {}),
+          },
+        } : { txid, ...data[txid] }
+
+        this.log({
+          message: 'addOrder :: openOrders subscription event - success!',
+          additional: { raw: payload, formatted: data, order: actualOrder },
+        })
+
+        unsubscribe()
+        resolve(actualOrder)
+      })
+
+      unsubscribeAddFailure = this.on('kraken:addorder:failure', payload => {
+        if (payload.reqid !== nextReqid) return 
+
+        this.log({
+          message: 'addOrder :: failure',
+          additional: { payload },
+        })
+
+        unsubscribe()
+        reject(payload)
+      })
+    })
   }
 
   /**
@@ -175,11 +356,15 @@ export class KrakenWSPrivate extends KrakenWS {
    *   total: Int
    * }
    */
-  cancelOrder = ({
-    reqid,
-    txid,
-  }) => {
+  cancelOrder = cancelOrderData => {
+    const { reqid, txid } = cancelOrderData
     const { token } = this._options
+
+    this.log({
+      message: 'cancelOrder :: start',
+      additional: { token, payload: cancelOrderData },
+    })
+
     const nextReqid = reqid || this._nextReqid++
     const txids = Array.isArray(txid) ? txid : [txid]
 
@@ -200,12 +385,35 @@ export class KrakenWSPrivate extends KrakenWS {
         counter += 1
 
         if (payload.status === 'error') {
+          this.log({
+            message: 'cancelOrder :: event error',
+            additional: { payload, counter, total: txids.length },
+          })
+
           failed += 1
         }
 
         if (counter === txids.length) {
           unsubscribeSuccess()
           unsubscribeFailure()
+
+          if (failed === 0) {
+            this.log({
+              message: 'cancelOrder :: success; none failed',
+              additional: { payload, counter, total: txids.length },
+            })
+          } else if (failed === txids.length) {
+            this.log({
+              message: 'cancelOrder :: failure; all failed',
+              additional: { payload, counter, total: txids.length },
+            })
+          } else {
+            this.log({
+              message: 'cancelOrder :: success/failure; some failed',
+              additional: { payload, counter, total: txids.length },
+            })
+          }
+
           failed === 0 ? resolve() : reject({
             failed,
             errorMessage: `Some orders could not be cancelled (${failed}/${counter})`,
@@ -231,8 +439,15 @@ export class KrakenWSPrivate extends KrakenWS {
    *   errorMessage: String,
    * }>}
    */
-  cancelAll = ({ reqid } = {}) => {
+  cancelAll = (cancelAllData = {}) => {
+    const { reqid } = cancelAllData
     const { token } = this._options
+
+    this.log({
+      message: 'cancelAll :: start',
+      additional: { token, payload: cancelAllData },
+    })
+
     const nextReqid = reqid || this._nextReqid++
 
     this.send({
@@ -246,6 +461,23 @@ export class KrakenWSPrivate extends KrakenWS {
       'kraken:cancelall:success',
       'kraken:cancelall:failure',
     )
+      .then(response => {
+        this.log({
+          message: 'cancelAll :: success',
+          additional: { payload: response },
+        })
+
+        return response
+      })
+      .catch(error => {
+        this.log({
+          message: 'cancelAll :: failure',
+          level: 'error',
+          additional: { payload: response },
+        })
+
+        throw error
+      })
   }
 
   /**
@@ -273,18 +505,38 @@ export class KrakenWSPrivate extends KrakenWS {
    * @param {bool} [options.snapshot]
    * @returns {Promise.<bool>}
    */
-  subscribe = (name, { reqid, snapshot }) => {
-    if (!name) return Promise.reject(
-      'You need to provide "name" when subscribing'
-    )
+  subscribe = (name, payload) => {
+    let errorMessage
+    const { reqid, snapshot } = payload
 
-    if (!this._options.token) return Promise.reject(
-      'You need to initialize this class with a token if you want to access private streams'
-    )
+    this.log({
+      message: 'subscribe :: start',
+      additional: {
+        token: this._options.token,
+        payload,
+      },
+    })
 
-    if (this.subscriptions[name])
-      return Promise.reject(`You've already subscribed to "${name}"`)
-    this.subscriptions[name] = true
+    if (!name) {
+      errorMessage = 'You need to provide "name" when subscribing'
+    }
+
+    if (!this._options.token) {
+      errorMessage = 'You need to initialize this class with a token if you want to access private streams'
+    }
+
+    if (this.subscriptions[name]) {
+      errorMessage = `You've already subscribed to "${name}"`
+    }
+
+    if (errorMessage) {
+      this.log({
+        message: 'subscribe (private) error',
+        additional: { errorMessage },
+      })
+
+      return Promise.reject({ errorMessage })
+    }
 
     const { token } = this._options
     const nextReqid = reqid || this._nextReqid++
@@ -294,10 +546,24 @@ export class KrakenWSPrivate extends KrakenWS {
       subscription: { name, reqid, token },
     })
 
-    const checker = payload => payload.reqid === nextReqid
+    const checker = _payload => _payload.reqid === nextReqid
     return this._handleSubscription(checker)
+      .then(response => {
+        this.log({
+          message: `Subscription success for name "${name}"`,
+          additional: { name, options: payload },
+        })
+
+        this.subscriptions[name] = payload
+
+        return response
+      })
       .catch(error => {
-        this.subscriptions[name] = false
+        this.log({
+          message: `Subscription failure for name "${name}"`,
+          additional: { name, payload },
+        })
+
         return Promise.reject(error)
       })
   }
@@ -308,11 +574,26 @@ export class KrakenWSPrivate extends KrakenWS {
    * @param {Int} [args.reqid]
    * @returns {Promise.<bool>}
    */
-  unsubscribe = ({ name, reqid }) => {
-    if (!name)
-      return Promise.reject('You need to provide "name" when unsubscribing')
-
+  unsubscribe = unsubscribeData => {
+    const { name, reqid } = unsubscribeData
     const { token } = this._options
+
+    this.log({
+      message: 'unsubscribe :: start',
+      additional: { token, payload: unsubscribeData },
+    })
+
+    if (!name) {
+      const errorMessage = 'You need to provide "name" when unsubscribing'
+
+      this.log({
+        message: 'unsubscribe (private) error',
+        additional: { errorMessage },
+      })
+
+      return Promise.reject({ errorMessage })
+    }
+
     const nextReqid = reqid || this._nextReqid++
 
     const response = this.send({
@@ -326,8 +607,25 @@ export class KrakenWSPrivate extends KrakenWS {
 
     return this._handleUnsubscription(checker)
       .then(payload => {
-        this.subscriptions[name] = false
+        this.log({
+          message: `Unsubscribe success for name "${name}"`,
+          additional: { name, options: payload },
+        })
+
+        this.subscriptions[name] = null
         return payload
       })
+      .catch(error => {
+        this.log({
+          message: `Unsubscribe failure for name "${name}"`,
+          additional: { name, payload },
+        })
+
+        return Promise.reject(error)
+      })
+  }
+
+  log(data) {
+    super.log({ ...data, prefix: 'KrakenWSPrivate :: ' })
   }
 }

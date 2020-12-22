@@ -61,6 +61,24 @@ export class KrakenWSPublic extends KrakenWS {
     ]
   }
 
+  resubscribe = () => {
+    super.resubscribe()
+
+    const { ticker, trade, spread, ohlc, book } = this.subscriptions
+    const subscriptions = { ticker, trade, spread, ohlc, book }
+
+    for (const [name, namedSubscriptions] in Object.entries(subscriptions)) {
+      for (const [pair, options] in Object.entries(namedSubscriptions)) {
+        this.log({
+          message: `Resubscribe "${name}" for pair "${pair}"`,
+          additional: { name, pair, options },
+        })
+
+        this.subscribe(pair, name, options)
+      }
+    }
+  }
+
   /**
    * @param {Object} options
    * @param {String} options.pair
@@ -167,43 +185,70 @@ export class KrakenWSPublic extends KrakenWS {
    * @returns {Promise.<bool>}
    */
   subscribe = (pair, name, options) => {
-    if (!name) return Promise.reject({
-      errorMessage: "You need to provide 'name' when subscribing",
+    let errorMessage
+
+    this.log({
+      message: 'subscribe (public)',
+      additional: { name, pair, options },
     })
 
-    if (!pair) return Promise.reject(
-      "You need to provide 'pair' when subscribing"
-    )
+    if (!name) {
+      errorMessage = "You need to provide 'name' when subscribing"
+    }
 
-    if (!isValidPublicName(name)) return Promise.reject({
-      errorMessage: `Invalid name. Valid names are: 'ticker', 'ohlc', 'trade', 'spread', 'book'. Received '${name}'`
-    })
+    if (!pair) {
+      errorMessage = "You need to provide 'pair' when subscribing"
+    }
 
-    if (!this._connection) return Promise.reject({
-      errorMessage: 'Not connected to the websocket',
-    })
+    if (!isValidPublicName(name)) {
+      errorMessage = `Invalid name. Valid names are: 'ticker', 'ohlc', 'trade', 'spread', 'book'. Received '${name}'`
+    }
+
+    if (!this._connection) {
+      errorMessage = 'Not connected to the websocket'
+    }
+
+    if (errorMessage) {
+      this.log({
+        message: 'subscribe (public) error',
+        additional: { errorMessage },
+      })
+
+      return Promise.reject({ errorMessage })
+    }
 
     const { reqid, depth, interval, snapshot, token } = options
     const alreadySubscribed = this.subscriptions[name][pair] && pair
 
-    if (alreadySubscribed) return Promise.reject({
-      errorMessage: 'already subscribed',
-      pair: alreadySubscribed,
-      name,
-    })
+    if (alreadySubscribed) {
+      errorMessage = 'already subscribed'
+
+      this.log({
+        message: 'subscribe (public) error',
+        additional: { errorMessage },
+      })
+
+      return Promise.reject({ errorMessage, pair, name, options })
+    }
 
     const nextReqid = reqid || this._nextReqid++
-    const response = this.send({
+    this.send({
       pair: [pair],
       event: 'subscribe',
       reqid: nextReqid,
       subscription: { name, depth, interval, snapshot },
     })
 
-    const checker = payload => payload.reqid === nextReqid && payload.pair === pair
+    const checker = payload => payload.reqid === nextReqid
+
     return this._handleSubscription(checker)
       .then(payload => {
-        this.subscriptions[name][pair] = payload.channelID
+        this.log({
+          message: `Subscription success for name "${name}" with pair "${pair}"`,
+          additional: { name, pair, options },
+        })
+
+        this.subscriptions[name][pair] = options
 
         return {
           ...payload,
@@ -223,19 +268,35 @@ export class KrakenWSPublic extends KrakenWS {
    * @returns {Promise.<bool>}
    */
   subscribeMultiple = (pairs, name, options) => {
+    let errorMessage
+
+    this.log({
+      message: 'subscribe multiple (public)',
+      additional: { name, pair, options },
+    })
+
     const { reqid, depth, interval, snapshot } = options
 
-    if (!name) return Promise.reject(
-      "You need to provide 'name' when subscribing"
-    )
+    if (!name) {
+      errorMessage = "You need to provide 'name' when subscribing"
+    }
 
-    if (!pairs || !pairs.length) return Promise.reject(
-      "You need to provide 'pairs' of type String[] when subscribing"
-    )
+    if (!pairs || !pairs.length) {
+      errorMessage = "You need to provide 'pairs' of type String[] when subscribing"
+    }
 
-    if (!isValidPublicName(name)) return Promise.reject(
-      `Invalid name. Valid names are: 'ticker', 'ohlc', 'trade', 'spread', 'book'. Received '${name}'`
-    )
+    if (!isValidPublicName(name)) {
+      errorMessage = `Invalid name. Valid names are: 'ticker', 'ohlc', 'trade', 'spread', 'book'. Received '${name}'`
+    }
+
+    if (errorMessage) {
+      this.log({
+        message: 'subscribe multiple (public) error',
+        additional: { errorMessage },
+      })
+
+      return Promise.reject({ errorMessage })
+    }
 
     const alreadySubscribed = pairs.reduce(
       (found, _, pair) => {
@@ -245,14 +306,19 @@ export class KrakenWSPublic extends KrakenWS {
       ''
     )
 
-    if (alreadySubscribed) return Promise.reject({
-      errorMessage: 'already subscribed',
-      pair: alreadySubscribed,
-      name,
-    })
+    if (alreadySubscribed) {
+      errorMessage = 'already subscribed'
+
+      this.log({
+        message: 'subscribe multiple (public) error',
+        additional: { errorMessage, pairs, name, options },
+      })
+
+      return Promise.reject({ errorMessage })
+    }
 
     const nextReqid = reqid || this._nextReqid++
-    const response = this.send({
+    this.send({
       event: 'subscribe',
       pair: pairs,
       reqid: nextReqid,
@@ -265,7 +331,12 @@ export class KrakenWSPublic extends KrakenWS {
 
         return this._handleSubscription(checker)
           .then(payload => {
-            this.subscriptions[name][curPair] = payload.channelID
+            this.log({
+              message: `Subscription success for name "${name}" with pair "${curPair}"`,
+              additional: { name, pair: curPair, options },
+            })
+
+            this.subscriptions[name][curPair] = options
             return payload
           })
         // will be handles in the next `.then` step
@@ -284,7 +355,29 @@ export class KrakenWSPublic extends KrakenWS {
         const failureResponses = responses.filter(response => !!response.errorMessage)
 
         if (!successfulResponses.length) {
+          this.log({
+            message: `subscribe multiple (public) error :: all failed`,
+            additional: { name, pairs, options },
+          })
           return Promise.reject(responses)
+        }
+
+        if (failureResponses.length) {
+          this.log({
+            message: `subscribe multiple (public) error :: some failed`,
+            additional: {
+              name,
+              pairs,
+              options,
+              successfulResponses,
+              failureResponses,
+            },
+          })
+        } else {
+          this.log({
+            message: `subscribe multiple (public) error :: none failed`,
+            additional: { name, pairs, options, successfulResponses },
+          })
         }
 
         return {
@@ -308,14 +401,31 @@ export class KrakenWSPublic extends KrakenWS {
    * @returns {Promise.<bool>}
    */
   unsubscribe = ({ pair, name, reqid, options }) => {
-    if (!name)
-      return Promise.reject('You need to provide "name" when subscribing')
+    let errorMessage
 
-    if (!pair)
-      return Promise.reject('You need to provide "pair" when unsubscribing')
+    this.log({
+      message: 'unsubscribe (public)',
+      additional: { name, pair, options, reqid },
+    })
+
+    if (!name) {
+      errorMessage = 'You need to provide "name" when subscribing'
+    }
+
+    if (!pair) {
+      errorMessage = 'You need to provide "pair" when unsubscribing'
+    }
+
+    if (errorMessage) {
+      this.log({
+        message: 'unsubscribe (public) error',
+        additional: { errorMessage },
+      })
+
+      return Promise.reject({ errorMessage })
+    }
 
     const nextReqid = reqid || this._nextReqid++
-
     const response = this.send({
       event: 'unsubscribe',
       reqid: nextReqid,
@@ -329,6 +439,11 @@ export class KrakenWSPublic extends KrakenWS {
 
     return this._handleUnsubscription(checker)
       .then(payload => {
+        this.log({
+          message: `Unsubscribe success for name "${name}" with pair "${pair}"`,
+          additional: { name, pair, options },
+        })
+
         delete this.subscriptions[name][pair]
         return payload
       })
@@ -346,14 +461,31 @@ export class KrakenWSPublic extends KrakenWS {
    * @returns {Promise.<bool>}
    */
   unsubscribeMultiple = ({ pairs, name, reqid, options }) => {
-    if (!name)
-      return Promise.reject('You need to provide "name" when subscribing')
+    let errorMessage
 
-    if (!pairs.length)
-      return Promise.reject('You need to provide "pair" when unsubscribing')
+    this.log({
+      message: 'unsubscribe multiple (public)',
+      additional: { name, pair, options, reqid },
+    })
+
+    if (!name) {
+      errorMessage = 'You need to provide "name" when subscribing'
+    }
+
+    if (!pairs.length) {
+      errorMessage = 'You need to provide "pair" when unsubscribing'
+    }
+
+    if (errorMessage) {
+      this.log({
+        message: 'unsubscribe multiple (public) error',
+        additional: { errorMessage },
+      })
+
+      return Promise.reject({ errorMessage })
+    }
 
     const nextReqid = reqid || this._nextReqid++
-
     const response = this.send({
       event: 'unsubscribe',
       reqid: nextReqid,
@@ -367,6 +499,11 @@ export class KrakenWSPublic extends KrakenWS {
 
         return this._handleUnsubscription(checker)
           .then(payload => {
+            this.log({
+              message: `Unsubscribe success for name "${name}" with pair "${curPair}"`,
+              additional: { name, pair: curPair, options },
+            })
+
             delete this.subscriptions[name][curPair]
             return payload
           })
@@ -386,7 +523,29 @@ export class KrakenWSPublic extends KrakenWS {
         const failureResponses = responses.filter(response => !!response.errorMessage)
 
         if (!successfulResponses.length) {
+          this.log({
+            message: `unsubscribe multiple (public) error :: all failed`,
+            additional: { name, pairs, options },
+          })
           return Promise.reject(responses)
+        }
+
+        if (failureResponses.length) {
+          this.log({
+            message: `unsubscribe multiple (public) error :: some failed`,
+            additional: {
+              name,
+              pairs,
+              options,
+              successfulResponses,
+              failureResponses,
+            },
+          })
+        } else {
+          this.log({
+            message: `unsubscribe multiple (public) error :: none failed`,
+            additional: { name, pairs, options, successfulResponses },
+          })
         }
 
         return {
@@ -395,5 +554,9 @@ export class KrakenWSPublic extends KrakenWS {
         }
       }
     )
+  }
+
+  log(data) {
+    super.log({ ...data, prefix: 'KrakenWSPublic :: ' })
   }
 }
