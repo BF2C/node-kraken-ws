@@ -14,6 +14,8 @@ const DEFAULT_OPTIONS = {
   EventEmitter, // Event handler for composition
   WebSocket, // web socket class
   log: () => undefined,
+  autoPing: true,
+  maxReconnects: Infinity,
 }
 
 /**
@@ -53,6 +55,7 @@ export class KrakenWS {
     // "private" properties
     this._connection = null
     this._nextReqid = 0
+    this._curReconnect = options.maxReconnects
     this._options = { ...DEFAULT_OPTIONS, ...options }
 
     this.log({
@@ -72,11 +75,11 @@ export class KrakenWS {
     // public properties
     this.subscriptions = {}
 
-    this.on('kraken:connection:established', () => this.resubscribe())
-  }
+    this.on('kraken:connection:established', () => this.log({ message: 'resubscribe' }))
 
-  resubscribe = () => {
-    this.log({ message: 'resubscribe' })
+    // auto ping
+    // @TODO(prevent resubscription)
+    // this._options.autoPing && this.autoPing()
   }
 
   /**
@@ -112,6 +115,18 @@ export class KrakenWS {
    * @return {Promise.<void>}
    */
   connect = (retryCounter = 0) => {
+    if (this._curReconnect >= this._options.maxReconnects) {
+      this.log({
+        message: 'connect -> max reconnects reached',
+        additional: {
+          curReconnect: this._curReconnect,
+          maxReconnects: this._options.maxReconnects,
+        },
+      })
+
+      return Promise.reject(new Error('max reconnects reached'))
+    }
+
     this.log({ message: 'connect -> start' })
 
     if (this._connection) {
@@ -132,31 +147,30 @@ export class KrakenWS {
 
     this._emit('kraken:connection:establishing')
 
-    const onSuccess = ws => {
-      this.log({ message: 'connect -> connection:established' })
-      this._emit('kraken:connection:established', { ws })
-      resolve(ws)
-    }
-
-    const onFailure = error => {
-      this.log({ message: 'connect -> connection:failed' })
-      this._emit('kraken:connection:failed', { error })
-      reject(e)
-    }
-
     const onClose = () => {
-      // change state to reconnecting during first
-      if (this._options.retryCount === 0) {
+      this._connection = null
+      this.log({ message: 'connect -> connection:closed' })
+      this._emit('kraken:connection:closed')
+
+      if (this._options.retryCount !== 0) {
         this._connection = null
-        this.log({ message: 'connect -> connection:closed' })
-        this._emit('kraken:connection:closed')
+        this.log({ message: 'connect -> reconnecting:start' })
+        this._emit('kraken:connection:reconnecting:start')
+        this.connect(0)
+        return
+      }
+    }
+
+    const onFailure = () => {
+      // change state to reconnecting during first
+      if (!this._options.retryCount) {
+        this._connection = null
+        this.log({ message: 'connect -> connection:noretry' })
+        this._emit('kraken:connection:noretry')
         return
       }
 
-      if (retryCounter === 0) {
-        this.log({ message: 'connect -> reconnecting:start' })
-        this._emit('kraken:connection:reconnecting:start')
-      } else {
+      if (retryCounter !== 0) {
         this.log({
           message: 'connect -> reconnecting:continue',
           additional: { counter: retryCounter + 1 },
@@ -170,10 +184,15 @@ export class KrakenWS {
 
       this._retryTimeout()
         .then(() => this.connect(retryCounter + 1))
-        .catch(() => {})
     }
 
     return this._establishConnection({ onClose })
+      .then(_payload => {
+        this._curReconnect += 1
+        this._emit('kraken:connection:established', _payload)
+        return _payload
+      })
+      .catch(() => onFailure())
   }
 
   /**
@@ -251,6 +270,7 @@ export class KrakenWS {
       resolve(payload)
     })
 
+    this.log({ message: 'ping', additional: { reqid }})
     this.send({ event: 'ping', reqid: reqid })
   }))
   
@@ -430,6 +450,49 @@ export class KrakenWS {
       message: `${prefix}${message}`,
       level,
       ...(additional ? { additional } : {}),
+    })
+  }
+
+  autoPing = () => {
+    let intervalID = null
+
+    const autoUpdatingSetInterval = (callback, timeout) => {
+      this.log({ message: 'autoPing :: autoUpdatingSetInterval called' })
+
+      intervalID = setInterval(() => {
+        this.log({ message: 'autoPing :: interval handler' })
+        callback()
+        autoUpdatingSetInterval()
+      }, timeout)
+    }
+
+    const disconnectEvents = [
+      'kraken:connection:establishing',
+      'kraken:connection:failed',
+      'kraken:connection:reconnecting:start',
+    ]
+
+    const connectEvents = [
+      'kraken:connection:established'
+    ]
+
+    this.on(disconnectEvents.join(' '), () => {
+      if (intervalID) {
+        this.log({ message: 'autoPing :: clear interval on disconnect event' })
+        clearInterval(intervalID)
+      } else {
+        this.log({ message: 'autoPing :: could not clear interval as no interval id on close' })
+      }
+    })
+
+    this.on(connectEvents.join(' '), () => {
+      this.log({ message: 'autoPing :: init interval on connect event' })
+
+      autoUpdatingSetInterval(() => {
+        const nextReqid = this._nextReqid++
+        this.log({ message: 'autoPing :: ping', additional: { reqid: nextReqid } })
+        this.ping(nextReqid)
+      })
     })
   }
 }
