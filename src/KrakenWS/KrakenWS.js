@@ -12,6 +12,7 @@ const DEFAULT_OPTIONS = {
   retryCount: 5,
   retryDelay: 100, // ms
   EventEmitter, // Event handler for composition
+  eventEmitterMaxListeners: 100,
   WebSocket, // web socket class
   log: () => undefined,
   autoPing: true,
@@ -65,6 +66,10 @@ export class KrakenWS {
 
     // composition over inheritance
     this._eventHandler = new this._options.EventEmitter()
+
+    this._eventHandler.setMaxListeners &&
+      this._eventHandler.setMaxListeners(this._options.eventEmitterMaxListeners)
+
     this.socketMessageHandlers = [
       handleUnhandled,
       handleSystemStatus,
