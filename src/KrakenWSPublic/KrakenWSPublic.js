@@ -272,7 +272,7 @@ export class KrakenWSPublic extends KrakenWS {
 
     this.log({
       message: 'subscribe multiple (public)',
-      additional: { name, pair, options },
+      additional: { name, pairs, options },
     })
 
     const { reqid, depth, interval, snapshot } = options
@@ -465,7 +465,7 @@ export class KrakenWSPublic extends KrakenWS {
 
     this.log({
       message: 'unsubscribe multiple (public)',
-      additional: { name, pair, options, reqid },
+      additional: { name, pairs, options, reqid },
     })
 
     if (!name) {
