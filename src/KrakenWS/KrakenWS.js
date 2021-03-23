@@ -266,7 +266,7 @@ export class KrakenWS {
    * @param {Int} [options.reqid]
    * @returns {Promise}
    */
-  ping = ({ reqid } = {}) => this._withConnection(() => new Promise(resolve => {
+  ping = ({ reqid } = {}) => new Promise(resolve => {
     const nextReqid = reqid || this._nextReqid++
 
     const unsubscribe = this.on('kraken:pong', payload => {
@@ -277,7 +277,7 @@ export class KrakenWS {
 
     this.log({ message: 'ping', additional: { reqid }})
     this.send({ event: 'ping', reqid: reqid })
-  }))
+  })
   
   /**
    * @param {string} e
