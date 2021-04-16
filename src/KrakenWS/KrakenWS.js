@@ -9,14 +9,14 @@ import { handleUnhandled } from './handleUnhandled'
 import { handleSystemStatus } from './handleSystemStatus'
 
 const DEFAULT_OPTIONS = {
+  EventEmitter, // Event handler for composition
+  WebSocket, // web socket class
+  autoPing: true,
+  eventEmitterMaxListeners: 100,
+  log: () => undefined,
+  maxReconnects: Infinity,
   retryCount: 5,
   retryDelay: 100, // ms
-  EventEmitter, // Event handler for composition
-  eventEmitterMaxListeners: 100,
-  WebSocket, // web socket class
-  log: () => undefined,
-  autoPing: true,
-  maxReconnects: Infinity,
 }
 
 /**
@@ -52,12 +52,12 @@ export class KrakenWS {
  * Class to be instantiated as websocket instance
  * Must follow the api of the WebSocket class provided by the ws npm module
  */
-  constructor(options) {
+  constructor(options = {}) {
     // "private" properties
+    this._options = { ...DEFAULT_OPTIONS, ...options }
     this._connection = null
     this._nextReqid = 0
-    this._curReconnect = options.maxReconnects
-    this._options = { ...DEFAULT_OPTIONS, ...options }
+    this._curReconnect = 0
 
     this.log({
       message: 'Constructing Kraken WS instance',
