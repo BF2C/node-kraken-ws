@@ -91,7 +91,7 @@ export class KrakenWS {
    * Forwards all arguments to the event handler
    */
   _emit = (...args) => {
-    this.log({ message: 'emit' })
+    this.log({ message: 'emit', additional: args })
     return this._eventHandler.emit(...args)
   }
 

@@ -122,4 +122,34 @@ describe('KrakenWS', () => {
       })
     })
   })
+
+  describe('_emit', () => {
+    it('should log an emit', () => {
+      const log = jest.fn()
+      const instance = new KrakenWS({ log })
+      log.mockClear()
+
+      instance._emit(1, 2, 3)
+      expect(log).toHaveBeenCalledWith({
+        level: 'info',
+        message: 'KrakenWS :: emit',
+        additional: [1, 2, 3],
+      })
+    })
+
+    it('should forward the emit to the event handler', () => {
+      const emit = jest.fn()
+      const Emitter = class Emitter {
+        emit = emit
+        on = jest.fn()
+      }
+
+      const instance = new KrakenWS({ EventEmitter: Emitter })
+      expect(emit).toHaveBeenCalledTimes(0)
+
+      instance._emit(1, 2, 3)
+      expect(emit).toHaveBeenCalledTimes(1)
+      expect(emit).toHaveBeenCalledWith(1, 2, 3)
+    })
+  })
 })
