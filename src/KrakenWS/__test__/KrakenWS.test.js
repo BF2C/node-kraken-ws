@@ -152,4 +152,70 @@ describe('KrakenWS', () => {
       expect(emit).toHaveBeenCalledWith(1, 2, 3)
     })
   })
+
+  describe('on', () => {
+    const callback = jest.fn()
+    const log = jest.fn()
+    const emit = jest.fn()
+    const on = jest.fn()
+    const removeListener = jest.fn()
+    const Emitter = class {
+      emit = emit
+      on = on
+      removeListener = removeListener
+    }
+    let instance
+
+    beforeEach(() => {
+      instance = new KrakenWS({ log, EventEmitter: Emitter })
+      log.mockClear()
+      emit.mockClear()
+      on.mockClear()
+      removeListener.mockClear()
+      callback.mockClear()
+    })
+
+    it('should log the event registration', () => {
+      instance.on('foo', callback, 1, 2, 3)
+      expect(log).toHaveBeenCalledWith({
+        level: 'info',
+        message: 'KrakenWS :: on',
+        additional: {
+          events: ['foo'],
+          additionalArgs: [1, 2, 3]
+        }
+      })
+    })
+
+    it('should forward the event, callback and args to the emitter', () => {
+      instance.on('foo', callback, 1, 2, 3)
+      expect(on).toHaveBeenCalledWith('foo', callback, 1, 2, 3)
+    })
+
+    it('should call the removeListener once when calling the returned function', () => {
+      const off = instance.on('foo', callback, 1, 2, 3)
+      expect(removeListener).toHaveBeenCalledTimes(0)
+      off()
+      expect(removeListener).toHaveBeenCalledTimes(1)
+      expect(removeListener).toHaveBeenCalledWith('foo', callback)
+    })
+
+    it('should register multiple events', () => {
+      instance.on('foo bar baz', callback, 1, 2, 3)
+      expect(on).toHaveBeenCalledTimes(3)
+      expect(on).toHaveBeenNthCalledWith(1, 'foo', callback, 1, 2, 3)
+      expect(on).toHaveBeenNthCalledWith(2, 'bar', callback, 1, 2, 3)
+      expect(on).toHaveBeenNthCalledWith(3, 'baz', callback, 1, 2, 3)
+    })
+
+    it('should unregister multiple events', () => {
+      const off = instance.on('foo bar baz', callback, 1, 2, 3)
+      expect(removeListener).toHaveBeenCalledTimes(0)
+      off()
+      expect(removeListener).toHaveBeenCalledTimes(3)
+      expect(removeListener).toHaveBeenNthCalledWith(1, 'foo', callback)
+      expect(removeListener).toHaveBeenNthCalledWith(2, 'bar', callback)
+      expect(removeListener).toHaveBeenNthCalledWith(3, 'baz', callback)
+    })
+  })
 })
