@@ -1,4 +1,8 @@
 export const handlePong = ({ payload }) => {
-  if (payload.event !== 'pong') return
-  return { name: 'kraken:pong' }
+  const { reqid, event } = payload
+
+  if (event !== 'pong') return
+  if (typeof reqid === 'undefined') throw new Error('payload does not have a reqid')
+
+  return { name: 'kraken:pong', payload: { reqid } }
 }

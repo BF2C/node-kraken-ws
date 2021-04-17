@@ -14,9 +14,9 @@ const DEFAULT_OPTIONS = {
   autoPing: true,
   eventEmitterMaxListeners: 100,
   log: () => undefined,
-  maxReconnects: Infinity,
   retryCount: 5,
   retryDelay: 100, // ms
+  maxReconnects: Infinity,
 }
 
 /**
@@ -110,7 +110,7 @@ export class KrakenWS {
   }
 
   isConnected = () => {
-    return !!this._connection
+    return !!this._connection ? Promise.resolve() : Promise.reject()
   }
 
   /**
@@ -120,7 +120,7 @@ export class KrakenWS {
    * @return {Promise.<void>}
    */
   connect = (retryCounter = 0) => {
-    if (this._curReconnect >= this._options.maxReconnects) {
+    if (this._curReconnect > this._options.maxReconnects && this._curReconnect > 0) {
       this.log({
         message: 'connect -> max reconnects reached',
         additional: {
@@ -129,7 +129,9 @@ export class KrakenWS {
         },
       })
 
-      return Promise.reject(new Error('max reconnects reached'))
+      return Promise.reject(
+        new Error(`Max reconnects of "${this._options.maxReconnects}" reached`)
+      )
     }
 
     this.log({ message: 'connect -> start' })
@@ -147,7 +149,10 @@ export class KrakenWS {
       this.log({ message: 'connect -> reconnecting:failure' })
       this._emit('kraken:connection:closed')
       this._emit('kraken:connection:reconnecting:failure')
-      return
+
+      return Promise.reject(
+        new Error(`Max retrys of "${this._options.retryCount}" reached`)
+      )
     }
 
     this._emit('kraken:connection:establishing')
@@ -157,12 +162,14 @@ export class KrakenWS {
       this.log({ message: 'connect -> connection:closed' })
       this._emit('kraken:connection:closed')
 
-      if (this._options.retryCount !== 0) {
+      if (this._options.maxReconnects !== 0) {
         this._connection = null
         this.log({ message: 'connect -> reconnecting:start' })
         this._emit('kraken:connection:reconnecting:start')
-        this.connect(0)
-        return
+        this._curReconnect += 1
+
+        // ignore failure => retry happens automatically
+        this.connect().catch(() => null)
       }
     }
 
@@ -172,7 +179,10 @@ export class KrakenWS {
         this._connection = null
         this.log({ message: 'connect -> connection:noretry' })
         this._emit('kraken:connection:noretry')
-        return
+
+        return Promise.reject(
+          new Error('Connection refused, retryCount is 0')
+        )
       }
 
       if (retryCounter !== 0) {
@@ -187,17 +197,15 @@ export class KrakenWS {
         )
       }
 
-      this._retryTimeout()
-        .then(() => this.connect(retryCounter + 1))
+      return this._retryTimeout().then(() => this.connect(retryCounter + 1))
     }
 
     return this._establishConnection({ onClose })
       .then(_payload => {
-        this._curReconnect += 1
         this._emit('kraken:connection:established', _payload)
         return _payload
       })
-      .catch(() => onFailure())
+      .catch(error => onFailure(error))
   }
 
   /**
@@ -215,12 +223,12 @@ export class KrakenWS {
         const unsubscribe = this.on('kraken:connection:closed', () => {
           this._connection = null
           unsubscribe()
-          resolve()
+          resolve({ closed: true })
         })
       })
     }
 
-    return Promise.resolve()
+    return Promise.resolve({ closed: false })
   }
 
   _retryTimeout = () => new Promise((resolve, reject) => {
@@ -230,12 +238,17 @@ export class KrakenWS {
       if (!this._connection) reject()
       unsubscribe()
       clearTimeout(timeoutID)
+      reject()
     })
 
     timeoutID = setTimeout(() => {
-      unsubscribe()
-      resolve()
-    }, this._options._retryTimeout)
+      try {
+        unsubscribe()
+        resolve()
+      } catch (e) {
+        console.error(e)
+      }
+    }, this._options.retryDelay)
   })
 
   /**
@@ -275,8 +288,8 @@ export class KrakenWS {
       resolve(payload)
     })
 
-    this.log({ message: 'ping', additional: { reqid }})
-    this.send({ event: 'ping', reqid: reqid })
+    this.log({ message: 'ping', additional: { reqid: nextReqid }})
+    this.send({ event: 'ping', reqid: nextReqid })
   })
   
   /**
@@ -284,7 +297,7 @@ export class KrakenWS {
    * @returns {void}
    */
   handleMessage = event => {
-    let payload
+    let payload, reqid
 
     try {
       payload = JSON.parse(event.data);
@@ -348,7 +361,7 @@ export class KrakenWS {
     const ws = new this._options.WebSocket(this._options.url)
     this._connection = null
 
-    ws.onopen = () => {
+    ws.onopen = (...args) => {
       this.log({
         message: 'establish connection :: success',
         additional: { url: this._options.url },
@@ -363,7 +376,12 @@ export class KrakenWS {
         additional: { url: this._options.url, error: error.message },
       })
 
-      reject(error)
+      if (this._connection) {
+        this._connection = null
+        onClose && onClose()
+      } else {
+        reject(error)
+      }
     }
 
     ws.onclose = () => {
