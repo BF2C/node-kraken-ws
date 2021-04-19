@@ -11,7 +11,7 @@ import { handleSystemStatus } from './handleSystemStatus'
 const DEFAULT_OPTIONS = {
   EventEmitter, // Event handler for composition
   WebSocket, // web socket class
-  autoPing: true,
+  autoPing: false,
   eventEmitterMaxListeners: 100,
   log: () => undefined,
   retryCount: 5,
@@ -413,7 +413,7 @@ export class KrakenWS {
     ._handleOneTimeMessageResponse(
       checker,
       'kraken:subscribe:success',
-      'kraken:subscribe:failure',
+      'kraken:subscribe:error',
     )
     .then(response => ({
       ...response,
@@ -425,7 +425,7 @@ export class KrakenWS {
   _handleUnsubscription = checker => this._handleOneTimeMessageResponse(
     checker,
     'kraken:unsubscribe:success',
-    'kraken:unsubscribe:failure',
+    'kraken:subscribe:error',
   )
 
   _handleOneTimeMessageResponse = (checker, successEvent, failureEvent) =>
