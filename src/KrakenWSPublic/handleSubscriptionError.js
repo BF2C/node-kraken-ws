@@ -1,13 +1,8 @@
 export const handleSubscriptionError = ({ payload, subscriptions }) => {
-  const alreadySubscribed =
-    payload.subscription &&
-    subscriptions[payload.subscription.name][payload.pair]
-
   if (
     payload.event !== 'subscriptionStatus' ||
-    payload.status !== 'error' ||
-    alreadySubscribed
+    payload.status !== 'error'
   ) return
 
-  return { name: 'kraken:subscribe:failure', payload }
+  return { name: 'kraken:subscribe:error', payload }
 }
