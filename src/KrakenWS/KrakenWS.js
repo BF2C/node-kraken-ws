@@ -80,11 +80,21 @@ export class KrakenWS {
     // public properties
     this.subscriptions = {}
 
-    this.on('kraken:connection:established', () => this.log({ message: 'resubscribe' }))
+    this.on(
+      'kraken:connection:established',
+      () => {
+        this.log({ message: 'resubscribe' })
+        this.resubscribe()
+      }
+    )
 
     // auto ping
     // @TODO(prevent resubscription)
     // this._options.autoPing && this.autoPing()
+  }
+
+  resubscribe() {
+    // noop
   }
 
   /**
