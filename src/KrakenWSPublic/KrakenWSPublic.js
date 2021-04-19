@@ -75,11 +75,10 @@ export class KrakenWSPublic extends KrakenWS {
   resubscribe = () => {
     super.resubscribe()
 
-    const { ticker, trade, spread, ohlc, book } = this.subscriptions
-    const subscriptions = { ticker, trade, spread, ohlc, book }
+    for (const [name, namedSubscriptions] of Object.entries(this.subscriptions)) {
+      for (let [pair, options] of Object.entries(namedSubscriptions)) {
+        options = { ...options, reconnect: true }
 
-    for (const [name, namedSubscriptions] in Object.entries(subscriptions)) {
-      for (const [pair, options] in Object.entries(namedSubscriptions)) {
         this.log({
           message: `Resubscribe "${name}" for pair "${pair}"`,
           additional: { name, pair, options },
@@ -223,10 +222,10 @@ export class KrakenWSPublic extends KrakenWS {
       return Promise.reject(new Error(msg))
     }
 
-    const { reqid, depth, interval, snapshot, token } = options
+    const { reqid, depth, interval, snapshot, token, reconnect } = options
     const alreadySubscribed = this.subscriptions[name][pair]
 
-    if (alreadySubscribed) {
+    if (alreadySubscribed && !reconnect) {
       const msg = logError('already subscribed')
       return Promise.reject(new Error(msg))
     }
