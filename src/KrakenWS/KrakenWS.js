@@ -83,6 +83,7 @@ export class KrakenWS {
     this.on(
       'kraken:connection:established',
       () => {
+        if (this._curReconnect === 0) return
         this.log({ message: 'resubscribe' })
         this.resubscribe()
       }
@@ -183,16 +184,14 @@ export class KrakenWS {
       }
     }
 
-    const onFailure = () => {
+    const onFailure = error => {
       // change state to reconnecting during first
       if (!this._options.retryCount) {
         this._connection = null
         this.log({ message: 'connect -> connection:noretry' })
         this._emit('kraken:connection:noretry')
 
-        return Promise.reject(
-          new Error('Connection refused, retryCount is 0')
-        )
+        throw new Error('Connection refused, retryCount is 0')
       }
 
       if (retryCounter !== 0) {
