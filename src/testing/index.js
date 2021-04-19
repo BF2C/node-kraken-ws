@@ -7,6 +7,7 @@ export { createEmitSubscriptionEventTicker } from './createEmitSubscriptionEvent
 export { createEmitSubscriptionEventTrade } from './createEmitSubscriptionEventTrade'
 export { createEmitSubscriptionStatusBookSuccess } from './createEmitSubscriptionStatusBookSuccess'
 export { createEmitSubscriptionStatusOhlcSuccess } from './createEmitSubscriptionStatusOhlcSuccess'
+export { createEmitSubscriptionStatusOpenOrdersError } from './createEmitSubscriptionStatusOpenOrdersError'
 export { createEmitSubscriptionStatusOpenOrdersSuccess } from './createEmitSubscriptionStatusOpenOrdersSuccess'
 export { createEmitSubscriptionStatusOwnTradesSuccess } from './createEmitSubscriptionStatusOwnTradesSuccess'
 export { createEmitSubscriptionStatusSpreadSuccess } from './createEmitSubscriptionStatusSpreadSuccess'

@@ -1,8 +1,6 @@
 import { createEmitSubscriptionStatusSuccess } from './utils/createEmitSubscriptionStatusSuccess'
 
 export const createEmitSubscriptionStatusOwnTradesSuccess = data => {
-  if (!data.pair) throw new Error('Needs pair')
-
   const emitData = {
     channelName: 'trade',
     subscription: { name: 'ownTrades' },

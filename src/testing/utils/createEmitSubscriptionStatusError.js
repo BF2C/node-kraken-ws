@@ -30,9 +30,6 @@ export const createEmitSubscriptionStatusError = data => {
   if (!data.errorMessage) throw new Error('Need errorMessage')
   emitData.errorMessage = data.errorMessage
 
-  if (!data.channelName) throw new Error('Need channelName')
-  emitData.channelName = data.channelName
-
   if (typeof data.reqid !== 'undefined') {
     emitData.reqid = data.reqid
   }

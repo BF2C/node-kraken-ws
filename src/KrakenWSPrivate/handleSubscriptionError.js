@@ -9,5 +9,5 @@ export const handleSubscriptionError = ({ payload, subscriptions }) => {
     alreadySubscribed
   ) return
 
-  return { name: 'kraken:subscribe:failure', payload }
+  return { name: 'kraken:subscribe:error', payload }
 }

@@ -1,7 +1,6 @@
 import EventEmitter from 'events'
 import _WebSocket from 'ws'
 import { Server, WebSocket } from 'mock-socket'
-import WS from "jest-websocket-mock";
 import { KrakenWSPublic } from '../KrakenWSPublic'
 import {
   createEmitSubscriptionStatusSpreadError,

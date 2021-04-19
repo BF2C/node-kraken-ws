@@ -82,19 +82,19 @@ export class KrakenWSPrivate extends KrakenWS {
     if (this.subscriptions.ownTrades) {
       this.log({
         message: 'Resubscribe "ownTrades"',
-        additional: { name: 'ownTrades', options },
+        additional: { name: 'ownTrades' },
       })
 
-      this.subscribeToOwnTrades(this.subscriptions.ownTrades)
+      this.subscribeToOwnTrades({ reconnect: true })
     }
 
     if (this.subscriptions.openOrders) {
       this.log({
         message: 'Resubscribe "openOrders"',
-        additional: { name: 'ownTrades', options },
+        additional: { name: 'ownTrades' },
       })
 
-      this.subscribeToOpenOrders(this.subscriptions.openOrders)
+      this.subscribeToOpenOrders({ reconnect: true })
     }
   }
 
@@ -486,16 +486,21 @@ export class KrakenWSPrivate extends KrakenWS {
    * @param {Bool} [options.snapshot]
    * @returns {Promise.<bool>}
    */
-  subscribeToOwnTrades = ({ reqid, snapshot } = {}) =>
-    this.subscribe('ownTrades', { reqid, snapshot })
+  subscribeToOwnTrades = ({ reqid, snapshot, reconnect } = {}) => {
+    if (snapshot && typeof snapshot !== 'boolean') {
+      throw new Error('"snapshot" must be a boolean')
+    }
+
+    return this.subscribe('ownTrades', { reqid, snapshot, reconnect })
+  }
 
   /**
    * @param {Object} options
    * @param {Int} [options.reqid]
    * @returns {Promise.<bool>}
    */
-  subscribeToOpenOrders = ({ reqid } = {}) =>
-    this.subscribe('openOrders', { reqid })
+  subscribeToOpenOrders = ({ reqid, reconnect } = {}) =>
+    this.subscribe('openOrders', { reqid, reconnect })
 
   /**
    * @param {String} name
@@ -506,8 +511,7 @@ export class KrakenWSPrivate extends KrakenWS {
    * @returns {Promise.<bool>}
    */
   subscribe = (name, payload) => {
-    let errorMessage
-    const { reqid, snapshot } = payload
+    const { reqid, snapshot, reconnect } = payload
 
     this.log({
       message: 'subscribe :: start',
@@ -518,24 +522,21 @@ export class KrakenWSPrivate extends KrakenWS {
     })
 
     if (!name) {
-      errorMessage = 'You need to provide "name" when subscribing'
+      const message = 'You need to provide "name" when subscribing'
+      this.log({ message, additional: { payload } })
+      throw new Error(message)
     }
 
     if (!this._options.token) {
-      errorMessage = 'You need to initialize this class with a token if you want to access private streams'
+      const message = 'You need to initialize this class with a token if you want to access private streams'
+      this.log({ message, additional: { payload } })
+      throw new Error(message)
     }
 
-    if (this.subscriptions[name]) {
-      errorMessage = `You've already subscribed to "${name}"`
-    }
-
-    if (errorMessage) {
-      this.log({
-        message: 'subscribe (private) error',
-        additional: { errorMessage },
-      })
-
-      return Promise.reject({ errorMessage })
+    if (!reconnect && this.subscriptions[name]) {
+      const message = `You've already subscribed to "${name}"`
+      this.log({ message, additional: { payload } })
+      throw new Error(message)
     }
 
     const { token } = this._options
