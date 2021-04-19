@@ -100,8 +100,8 @@ export class KrakenWSPublic extends KrakenWS {
   /**
    * @param {Object} options
    * @param {String} options.pair
+   * @param {Int} options.interval
    * @param {Int} [options.reqid]
-   * @param {Int} [options.interval]
    * @returns {Promise.<bool>}
    */
   subscribeToOHLC = ({ pair, reqid, interval }) =>
