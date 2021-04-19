@@ -1,7 +1,3 @@
-import { KrakenWSPublic } from './KrakenWSPublic/KrakenWSPublic'
-import { KrakenWSPrivate } from './KrakenWSPrivate/KrakenWSPrivate'
-
-export {
-  KrakenWSPublic,
-  KrakenWSPrivate,
-}
+export { KrakenWSPublic } from './KrakenWSPublic/KrakenWSPublic'
+export { KrakenWSPrivate } from './KrakenWSPrivate/KrakenWSPrivate'
+export * from './testing/index'
