@@ -293,6 +293,7 @@ describe('KrakenWSPrivate', () => {
 
     it('should resubscribe to exiting subscriptions on reconnect', async () => {
       const instance = new KrakenWSPrivate({ url, token, WebSocket, retryDelay: 1 })
+      jest.spyOn(instance, 'subscribe')
 
       await instance.connect()
       acceptSubscriptions(client)
@@ -324,6 +325,12 @@ describe('KrakenWSPrivate', () => {
 
       await connectedPromise
       await subscriptionPromise
+
+      expect(instance.subscribe).toHaveBeenCalledTimes(4)
+      expect(instance.subscribe).toHaveBeenNthCalledWith(1, 'ownTrades', { reqid: undefined, snapshot: undefined, reconnect: undefined })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(2, 'openOrders', { reqid: undefined, reconnect: undefined })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(3, 'ownTrades', { reqid: undefined, snapshot: undefined, reconnect: true })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(4, 'openOrders', { reqid: undefined, reconnect: true })
     })
   })
 })

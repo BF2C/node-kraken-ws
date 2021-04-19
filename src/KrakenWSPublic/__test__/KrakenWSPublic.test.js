@@ -220,7 +220,6 @@ describe('KrakenWSPublic', () => {
 
       const request = instance.subscribe('XBT/EUR', 'spread', { reqid: 0 })
       await expect(request).rejects.toEqual(expect.objectContaining({
-        channelName: 'spread',
         errorMessage: 'Custom'
       }))
     })
@@ -499,6 +498,7 @@ describe('KrakenWSPublic', () => {
 
     it('should resubscribe to exiting subscriptions on reconnect', async () => {
       const instance = new KrakenWSPublic({ url, WebSocket, retryDelay: 1 })
+      jest.spyOn(instance, 'subscribe')
       await instance.connect()
       acceptSubscriptions(client)
 
@@ -537,6 +537,32 @@ describe('KrakenWSPublic', () => {
 
       await connectedPromise
       await subscriptionPromise
+
+      expect(instance.subscribe).toHaveBeenCalledTimes(20)
+
+      // original calls
+      expect(instance.subscribe).toHaveBeenNthCalledWith(1, 'XBT/EUR', 'spread', { reqid: undefined })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(2, 'XBT/EUR', 'trade', { reqid: undefined })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(3, 'XBT/EUR', 'ohlc', { interval: 5, reqid: undefined })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(4, 'XBT/EUR', 'book', { depth: 10, reqid: undefined })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(5, 'XBT/EUR', 'ticker', { reqid: undefined })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(6, 'XBT/USD', 'spread', { reqid: undefined })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(7, 'XBT/USD', 'trade', { reqid: undefined })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(8, 'XBT/USD', 'ohlc', { interval: 5, reqid: undefined })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(9, 'XBT/USD', 'book', { depth: 10, reqid: undefined })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(10, 'XBT/USD', 'ticker', { reqid: undefined })
+
+      // resubscription calls
+      expect(instance.subscribe).toHaveBeenNthCalledWith(11, 'XBT/EUR', 'ticker', { reqid: undefined, reconnect: true })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(12, 'XBT/USD', 'ticker', { reqid: undefined, reconnect: true })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(13, 'XBT/EUR', 'trade', { reqid: undefined, reconnect: true })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(14, 'XBT/USD', 'trade', { reqid: undefined, reconnect: true })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(15, 'XBT/EUR', 'spread', { reqid: undefined, reconnect: true })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(16, 'XBT/USD', 'spread', { reqid: undefined, reconnect: true })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(17, 'XBT/EUR', 'ohlc', { interval: 5, reqid: undefined, reconnect: true })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(18, 'XBT/USD', 'ohlc', { interval: 5, reqid: undefined, reconnect: true })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(19, 'XBT/EUR', 'book', { depth: 10, reqid: undefined, reconnect: true })
+      expect(instance.subscribe).toHaveBeenNthCalledWith(20, 'XBT/USD', 'book', { depth: 10, reqid: undefined, reconnect: true })
     })
   })
 })
