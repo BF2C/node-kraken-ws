@@ -5,7 +5,7 @@ export const handlePong = ({ payload }) => {
 
   const responsePayload = {}
 
-  if (reqid) {
+  if (typeof reqid !== 'undefined') {
     responsePayload.reqid = reqid
   }
 
