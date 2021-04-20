@@ -157,13 +157,14 @@ export class KrakenWS {
     const hasReachedMaxRetryAmount = retryCounter === this._options.retryCount
 
     if (isRetrying && hasReachedMaxRetryAmount) {
-      this.log({ message: 'connect -> reconnecting:failure' })
-      this._emit('kraken:connection:closed')
-      this._emit('kraken:connection:reconnecting:failure')
+      const err = new Error(`Max retrys of "${this._options.retryCount}" reached`)
 
-      return Promise.reject(
-        new Error(`Max retrys of "${this._options.retryCount}" reached`)
-      )
+      this.log({ message: 'connect -> reconnecting:error' })
+      this._emit('kraken:connection:closed')
+      this._emit('kraken:connection:reconnecting:error', err)
+      this._emit('kraken:connection:error', err)
+
+      return Promise.reject(err)
     }
 
     this._emit('kraken:connection:establishing')
@@ -187,11 +188,14 @@ export class KrakenWS {
     const onFailure = error => {
       // change state to reconnecting during first
       if (!this._options.retryCount) {
+        const err = new Error('Connection refused, retryCount is 0')
+
         this._connection = null
         this.log({ message: 'connect -> connection:noretry' })
-        this._emit('kraken:connection:noretry')
+        this._emit('kraken:connection:noretry', err)
+        this._emit('kraken:connection:error', err)
 
-        throw new Error('Connection refused, retryCount is 0')
+        throw err
       }
 
       if (retryCounter !== 0) {
@@ -472,7 +476,7 @@ export class KrakenWS {
     }
 
     unsubscribeSuccess = this.on('kraken:unsubscribe:success', onResponse(resolve))
-    unsubscribeFailure = this.on('kraken:unsubscribe:failure', onResponse(reject))
+    unsubscribeFailure = this.on('kraken:subscribe:error', onResponse(reject))
   })
 
   log({ message, additional, level = 'info', prefix = 'KrakenWS :: ' }) {
@@ -500,7 +504,7 @@ export class KrakenWS {
 
     const disconnectEvents = [
       'kraken:connection:establishing',
-      'kraken:connection:failed',
+      'kraken:connection:error',
       'kraken:connection:reconnecting:start',
     ]
 

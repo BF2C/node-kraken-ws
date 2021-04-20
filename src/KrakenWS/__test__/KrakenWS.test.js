@@ -41,7 +41,7 @@ describe('KrakenWS', () => {
         retryCount: 5,
         retryDelay: 100,
         eventEmitterMaxListeners: 100,
-        autoPing: true,
+        autoPing: false,
         maxReconnects: Infinity,
       }))
 
@@ -61,7 +61,7 @@ describe('KrakenWS', () => {
         retryCount: 6,
         retryDelay: 100,
         eventEmitterMaxListeners: 100,
-        autoPing: true,
+        autoPing: false,
         maxReconnects: Infinity,
       }))
 
@@ -83,7 +83,7 @@ describe('KrakenWS', () => {
             retryDelay: 100,
             EventEmitter,
             eventEmitterMaxListeners: 100,
-            autoPing: true,
+            autoPing: false,
             maxReconnects: Infinity,
           })
         }
@@ -121,16 +121,6 @@ describe('KrakenWS', () => {
     it('should start with 0 subscriptions', () => {
       const instance = new KrakenWS()
       expect(instance.subscriptions).toEqual({})
-    })
-
-    it('should log when the connection has been established', () => {
-      const log = jest.fn()
-      const instance = new KrakenWS({ log })
-      instance._eventHandler.emit('kraken:connection:established')
-      expect(log).toHaveBeenNthCalledWith(3, {
-        level: 'info',
-        message: 'KrakenWS :: resubscribe',
-      })
     })
   })
 

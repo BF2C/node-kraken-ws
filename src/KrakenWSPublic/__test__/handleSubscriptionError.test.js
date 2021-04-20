@@ -1,7 +1,7 @@
 import { handleSubscriptionError } from '../handleSubscriptionError'
 
 describe('handleSubscriptionError', () => {
-  it('should emit a subscription failure', () => {
+  it('should emit a subscription error', () => {
     const payload = {
       pair: 'XBT/EUR',
       event: 'subscriptionStatus',
@@ -10,7 +10,7 @@ describe('handleSubscriptionError', () => {
     }
     const subscriptions = { ticker: {} }
     const expected = {
-      name: 'kraken:subscribe:failure',
+      name: 'kraken:subscribe:error',
       payload: {
         pair: 'XBT/EUR',
         event: 'subscriptionStatus',
@@ -38,23 +38,6 @@ describe('handleSubscriptionError', () => {
       subscription: { name: 'ticker' }
     }
     const subscriptions = {}
-    const expected = undefined
-    const actual = handleSubscriptionError({ payload, subscriptions })
-    expect(actual).toBe(expected)
-  })
-
-  it('should return undefined when already subscribed', () => {
-    const payload = {
-      pair: 'XBT/EUR',
-      event: 'subscriptionStatus',
-      status: 'error',
-      subscription: { name: 'ticker' }
-    }
-
-    const subscriptions = {
-      ticker: { 'XBT/EUR': true }
-    }
-
     const expected = undefined
     const actual = handleSubscriptionError({ payload, subscriptions })
     expect(actual).toBe(expected)

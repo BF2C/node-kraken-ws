@@ -8,7 +8,6 @@ import { handleCancelOrderSuccess } from './handleCancelOrderSuccess'
 import { handleSubscriptionError } from './handleSubscriptionError'
 import { handleSubscriptionEvent } from './handleSubscriptionEvent'
 import { handleSubscriptionSuccess } from './handleSubscriptionSuccess'
-import { handleUnsubscriptionError } from './handleUnsubscriptionError'
 import { handleUnsubscriptionSuccess } from './handleUnsubscriptionSuccess'
 
 const DEFAULT_OPTIONS = {
@@ -71,7 +70,6 @@ export class KrakenWSPrivate extends KrakenWS {
       handleSubscriptionError,
       handleSubscriptionEvent,
       handleSubscriptionSuccess,
-      handleUnsubscriptionError,
       handleUnsubscriptionSuccess,
     ]
   }

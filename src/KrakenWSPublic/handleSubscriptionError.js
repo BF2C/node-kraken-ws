@@ -1,4 +1,4 @@
-export const handleSubscriptionError = ({ payload, subscriptions }) => {
+export const handleSubscriptionError = ({ payload }) => {
   if (
     payload.event !== 'subscriptionStatus' ||
     payload.status !== 'error'

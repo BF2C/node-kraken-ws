@@ -22,6 +22,23 @@ A websocket connection can subscribe to either public or private channels.
 For this reason, there are two implementations, one for public & one for
 private channels.
 
+### Connecting
+
+Creating an instance will not connect to the web socket, instead, contrary to
+3.x versions, the `connect` method has to be used:
+
+```js
+import { KrakenWSPublic, KrakenWSPrivate } from 'node-kraken-ws'
+
+async () => {
+  const public = new KrakenWSPublic()
+  await public.connect()
+
+  const private = new KrakenWSPrivate()
+  await private.connect()
+}
+```
+
 ### Subscribing
 
 Subscribing will always return a promise with the properties described in the
@@ -30,94 +47,55 @@ A `unsubscribe` prop will be added by this library:
 
 
 ```js
-const {
-  ...originalPayload,
-  unsubscribe, // Function
-} = await instance.subscribe(...)
+import { KrakenWSPublic, KrakenWSPrivate } from 'node-kraken-ws'
+
+async () => {
+  const instance = new KrakenWSPublic()
+  await instance.connect()
+
+  const {
+    ...originalPayload,
+    unsubscribe, // Function
+  } = await instance.subscribe(...)
+}
 ```
 
 ### Listening to events
 
 ```js
-const instance = new KrakenWS/*Public|Private*/({ /* ... */ })
-const removeListener = instance.on('eventname', eventHandler)
+import { KrakenWSPublic, KrakenWSPrivate } from 'node-kraken-ws'
+
+async () => {
+  const instance = new KrakenWSPublic()
+  await instance.connect()
+  const { channelID } = await instance.subscribeToSpread(...)
+
+  const removeListener = instance.on('kraken:subscribe:event', payload => {
+    if (payload[0] !== channelID) return
+    // ...
+  })
+}
 ```
 
 #### List of shared events
 
-##### kraken:connection:closed
-
-```ts
-void
-```
-
-##### kraken:connection:establishing
-
-```ts
-void
-```
-
-##### kraken:connection:established
-
-`{ ws: /* instance of the actual websocket */ }`
-
-##### kraken:connection:failed
-
-```ts
-{
-  error: Error
-}
-```
-
-##### kraken:connection:reconnecting:start
-
-```ts
-void
-```
-
-##### kraken:connection:reconnecting:failure
-
-```ts
-void
-```
-
-##### kraken:subscribe:success
-
-See [subscriptionStatus](https://docs.kraken.com/websockets/#message-subscriptionStatus)
-The response of the kraken websocket is just forwarded
-The payload additionally has a `unsubscribe` property, which can be used to
-unsubscribe to the channel.
-
-```ts
-{
-  // ... the standard payload provided by kraken's websocket
-  unsubscribe: () => void
-}
-```
-
-##### kraken:subscribe:failure
-
-See [subscriptionStatus](https://docs.kraken.com/websockets/#message-subscriptionStatus)
-The response of the kraken websocket is just forwarded
-
-##### kraken:unsubscribe:success
-
-`void`
-
-##### kraken:unsubscribe:failure
-
-@TODO
-
-##### kraken:subscription:event
-
-See [Kraken Websocket api](https://docs.kraken.com/websockets/#message-ticker).
-The response of the kraken websocket is just forwarded
-
-##### kraken:unhandled
-
-```ts
-Object.<string, any>
-```
+* kraken:connection:closed
+* kraken:connection:establishing
+* kraken:connection:established
+  * payload: `{ ws: /* instance of the actual websocket */ }`
+* kraken:connection:error
+  * paylaod: instance of `Error`
+* kraken:connection:reconnecting:start
+* kraken:connection:reconnecting:failure
+* kraken:subscribe:success
+* kraken:subscribe:error
+  * See [subscriptionStatus](https://docs.kraken.com/websockets/#message-subscriptionStatus). The response of the kraken websocket is just forwarded The payload additionally has a `unsubscribe` property, which can be used to unsubscribe to the channel.
+* kraken:subscribe:failure
+  * See [subscriptionStatus](https://docs.kraken.com/websockets/#message-subscriptionStatus). The response of the kraken websocket is just forwarded
+* kraken:unsubscribe:success
+* kraken:subscription:event
+  * See [Kraken Websocket api](https://docs.kraken.com/websockets/#message-ticker).  The response of the kraken websocket is just forwarded
+* kraken:unhandled
 
 ## Public channels
 
@@ -138,15 +116,6 @@ const ws = new KrakenWSPublic({ /* pass options */ })
 | pair | String | yes | / |
 | reqid | Int | no | / |
 
-#### subscribeToTickerMultiple
-
-##### Arguments
-
-| arguments | type | required | default value |
-|-----------|------|----------|---------------|
-| pairs | String[] | yes | / |
-| reqid | Int | no | / |
-
 #### subscribeToOHLC
 
 ##### Arguments
@@ -154,16 +123,6 @@ const ws = new KrakenWSPublic({ /* pass options */ })
 | arguments | type | required | default value |
 |-----------|------|----------|---------------|
 | pair | String | yes | / |
-| reqid | Int | no | / |
-| interval | Int | no | / |
-
-#### subscribeToOHLCMultiple
-
-##### Arguments
-
-| arguments | type | required | default value |
-|-----------|------|----------|---------------|
-| pairs | String[] | yes | / |
 | reqid | Int | no | / |
 | interval | Int | no | / |
 
@@ -176,15 +135,6 @@ const ws = new KrakenWSPublic({ /* pass options */ })
 | pair | String | yes | / |
 | reqid | Int | no | / |
 
-#### subscribeToTradeMultiple
-
-##### Arguments
-
-| arguments | type | required | default value |
-|-----------|------|----------|---------------|
-| pairs | String[] | yes | / |
-| reqid | Int | no | / |
-
 #### subscribeToSpread
 
 ##### Arguments
@@ -194,15 +144,6 @@ const ws = new KrakenWSPublic({ /* pass options */ })
 | pair | String | yes | / |
 | reqid | Int | no | / |
 
-#### subscribeToSpreadMultiple
-
-##### Arguments
-
-| arguments | type | required | default value |
-|-----------|------|----------|---------------|
-| pairs | String[] | yes | / |
-| reqid | Int | no | / |
-
 #### subscribeToBook
 
 ##### Arguments
@@ -210,16 +151,6 @@ const ws = new KrakenWSPublic({ /* pass options */ })
 | arguments | type | required | default value |
 |-----------|------|----------|---------------|
 | pair | String | yes | / |
-| reqid | Int | no | / |
-| depth | Int | no | / |
-
-#### subscribeToBookMultiple
-
-##### Arguments
-
-| arguments | type | required | default value |
-|-----------|------|----------|---------------|
-| pairs | String[] | yes | / |
 | reqid | Int | no | / |
 | depth | Int | no | / |
 
