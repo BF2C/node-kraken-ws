@@ -8,7 +8,8 @@ export const handleUnsubscriptionSuccess = ({ payload, subscriptions }) => {
     payload.event !== 'subscriptionStatus' ||
     payload.status !== 'unsubscribed' ||
     !alreadySubscribed
-  ) return
+  )
+    return
 
   return { name: 'kraken:unsubscribe:success', payload }
 }

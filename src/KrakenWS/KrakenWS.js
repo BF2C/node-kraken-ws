@@ -1,12 +1,9 @@
-import WebSocket from 'ws'
 import EventEmitter from 'events'
-
-import { isValidPublicName } from './isValidPublicName'
-import { isValidPrivateName } from './isValidPrivateName'
-import { handlePong } from './handlePong'
+import WebSocket from 'ws'
 import { handleHeartbeat } from './handleHeartbeat'
-import { handleUnhandled } from './handleUnhandled'
+import { handlePong } from './handlePong'
 import { handleSystemStatus } from './handleSystemStatus'
+import { handleUnhandled } from './handleUnhandled'
 
 const DEFAULT_OPTIONS = {
   EventEmitter, // Event handler for composition
@@ -24,34 +21,34 @@ const DEFAULT_OPTIONS = {
  * @prop {Object} subscriptions
  */
 export class KrakenWS {
-/**
- * I've used the proposal to use `typeof Class`
- * for some of the types. It is not official,
- * but it's being disucssed, see:
- * https://github.com/jsdoc/jsdoc/issues/1349
- *
- * @constructor
- *
- * @param {Object} options
- *
- * @param {String} options.url
- * Public channels can not be subscribed to on the private channel
- * and vice versa of course
- *
- * @param {Int} [options.retryCount]
- * How many times the socket should try to reconnect.
- *
- * @param {Int} [options.retryDelay]
- * Milliseconds between the retries
- *
- * @param {typeof EventEmitter} [options.EventEmitter]
- * Class to be instantiated as event handler
- * Must follow the api of the EventEmitter class
- *
- * @prop {typeof WebSocket} [options.WebSocket]
- * Class to be instantiated as websocket instance
- * Must follow the api of the WebSocket class provided by the ws npm module
- */
+  /**
+   * I've used the proposal to use `typeof Class`
+   * for some of the types. It is not official,
+   * but it's being disucssed, see:
+   * https://github.com/jsdoc/jsdoc/issues/1349
+   *
+   * @constructor
+   *
+   * @param {Object} options
+   *
+   * @param {String} options.url
+   * Public channels can not be subscribed to on the private channel
+   * and vice versa of course
+   *
+   * @param {Int} [options.retryCount]
+   * How many times the socket should try to reconnect.
+   *
+   * @param {Int} [options.retryDelay]
+   * Milliseconds between the retries
+   *
+   * @param {typeof EventEmitter} [options.EventEmitter]
+   * Class to be instantiated as event handler
+   * Must follow the api of the EventEmitter class
+   *
+   * @prop {typeof WebSocket} [options.WebSocket]
+   * Class to be instantiated as websocket instance
+   * Must follow the api of the WebSocket class provided by the ws npm module
+   */
   constructor(options = {}) {
     // "private" properties
     this._options = { ...DEFAULT_OPTIONS, ...options }
@@ -80,14 +77,11 @@ export class KrakenWS {
     // public properties
     this.subscriptions = {}
 
-    this.on(
-      'kraken:connection:established',
-      () => {
-        if (this._curReconnect === 0) return
-        this.log({ message: 'resubscribe' })
-        this.resubscribe()
-      }
-    )
+    this.on('kraken:connection:established', () => {
+      if (this._curReconnect === 0) return
+      this.log({ message: 'resubscribe' })
+      this.resubscribe()
+    })
 
     // auto ping
     // @TODO(prevent resubscription)
@@ -101,27 +95,27 @@ export class KrakenWS {
   /**
    * Forwards all arguments to the event handler
    */
-  _emit = (...args) => {
+  _emit(...args) {
     this.log({ message: 'emit', additional: args })
     return this._eventHandler.emit(...args)
   }
 
   on(eventStr, callback, ...args) {
     const events = eventStr.split(' ')
-    this.log({ message: 'on', additional: { events, additionalArgs: args }})
+    this.log({ message: 'on', additional: { events, additionalArgs: args } })
     events.map(event => this._eventHandler.on(event, callback, ...args))
-    
-    return () => {
-      this.log({ message: 'off', additional: { events }})
 
-      events.forEach(
-        event => this._eventHandler.removeListener(event, callback)
+    return () => {
+      this.log({ message: 'off', additional: { events } })
+
+      events.forEach(event =>
+        this._eventHandler.removeListener(event, callback)
       )
     }
   }
 
-  isConnected = () => {
-    return !!this._connection ? Promise.resolve() : Promise.reject()
+  isConnected() {
+    return this._connection ? Promise.resolve() : Promise.reject()
   }
 
   /**
@@ -130,8 +124,11 @@ export class KrakenWS {
    *
    * @return {Promise.<void>}
    */
-  connect = (retryCounter = 0) => {
-    if (this._curReconnect > this._options.maxReconnects && this._curReconnect > 0) {
+  connect(retryCounter = 0) {
+    if (
+      this._curReconnect > this._options.maxReconnects &&
+      this._curReconnect > 0
+    ) {
       this.log({
         message: 'connect -> max reconnects reached',
         additional: {
@@ -157,7 +154,9 @@ export class KrakenWS {
     const hasReachedMaxRetryAmount = retryCounter === this._options.retryCount
 
     if (isRetrying && hasReachedMaxRetryAmount) {
-      const err = new Error(`Max retrys of "${this._options.retryCount}" reached`)
+      const err = new Error(
+        `Max retrys of "${this._options.retryCount}" reached`
+      )
 
       this.log({ message: 'connect -> reconnecting:error' })
       this._emit('kraken:connection:closed')
@@ -185,7 +184,7 @@ export class KrakenWS {
       }
     }
 
-    const onFailure = error => {
+    const onFailure = () => {
       // change state to reconnecting during first
       if (!this._options.retryCount) {
         const err = new Error('Connection refused, retryCount is 0')
@@ -204,10 +203,9 @@ export class KrakenWS {
           additional: { counter: retryCounter + 1 },
         })
 
-        this._emit(
-          'kraken:connection:reconnecting:continue',
-          { counter: retryCounter + 1 }
-        )
+        this._emit('kraken:connection:reconnecting:continue', {
+          counter: retryCounter + 1,
+        })
       }
 
       return this._retryTimeout().then(() => this.connect(retryCounter + 1))
@@ -224,7 +222,7 @@ export class KrakenWS {
   /**
    * @returns {Promise.<void>}
    */
-  disconnect = () => {
+  disconnect() {
     // So we can interrup the retry process
     this._emit('internal:connection:disconnected-manually')
 
@@ -244,37 +242,42 @@ export class KrakenWS {
     return Promise.resolve({ closed: false })
   }
 
-  _retryTimeout = () => new Promise((resolve, reject) => {
-    let timeoutID
+  _retryTimeout() {
+    return new Promise((resolve, reject) => {
+      const unsubscribe = this.on(
+        'internal:connection:disconnected-manually',
+        () => {
+          if (!this._connection) reject()
+          unsubscribe()
+          clearTimeout(timeoutID)
+          reject()
+        }
+      )
 
-    const unsubscribe = this.on('internal:connection:disconnected-manually', () => {
-      if (!this._connection) reject()
-      unsubscribe()
-      clearTimeout(timeoutID)
-      reject()
+      const timeoutID = setTimeout(() => {
+        try {
+          unsubscribe()
+          resolve()
+        } catch (e) {
+          console.error(e)
+        }
+      }, this._options.retryDelay)
     })
-
-    timeoutID = setTimeout(() => {
-      try {
-        unsubscribe()
-        resolve()
-      } catch (e) {
-        console.error(e)
-      }
-    }, this._options.retryDelay)
-  })
+  }
 
   /**
    * @param {Object} message
    * @returns {void}
    */
-  send = message => {
+  send(message) {
     if (!this._connection) {
       this.log({
-        message: 'Trying to send a message with closed connection'
+        message: 'Trying to send a message with closed connection',
       })
 
-      throw new Error("You can't send a message without an established websocket connection")
+      throw new Error(
+        "You can't send a message without an established websocket connection"
+      )
     }
 
     const payload = JSON.stringify(message)
@@ -292,33 +295,35 @@ export class KrakenWS {
    * @param {Int} [options.reqid]
    * @returns {Promise}
    */
-  ping = ({ reqid } = {}) => new Promise(resolve => {
-    const nextReqid = reqid || this._nextReqid++
+  ping({ reqid } = {}) {
+    return new Promise(resolve => {
+      const nextReqid = reqid || this._nextReqid++
 
-    const unsubscribe = this.on('kraken:pong', payload => {
-      if (payload.reqid !== nextReqid) return
-      unsubscribe()
-      resolve(payload)
+      const unsubscribe = this.on('kraken:pong', payload => {
+        if (payload.reqid !== nextReqid) return
+        unsubscribe()
+        resolve(payload)
+      })
+
+      this.log({ message: 'ping', additional: { reqid: nextReqid } })
+      this.send({ event: 'ping', reqid: nextReqid })
     })
+  }
 
-    this.log({ message: 'ping', additional: { reqid: nextReqid }})
-    this.send({ event: 'ping', reqid: nextReqid })
-  })
-  
   /**
    * @param {string} e
    * @returns {void}
    */
-  handleMessage = event => {
-    let payload, reqid
+  handleMessage(event) {
+    let payload
 
     try {
-      payload = JSON.parse(event.data);
+      payload = JSON.parse(event.data)
     } catch (event) {
       this.log({
         message: 'handleMessage :: Error parsing the payload',
         level: 'error',
-        additional: { payload: event }
+        additional: { payload: event },
       })
 
       return this._emit('kraken:error', {
@@ -330,7 +335,7 @@ export class KrakenWS {
 
     this.log({
       message: 'handleMessage :: Success parsing the payload',
-      additional: { payload }
+      additional: { payload },
     })
 
     const allEmits = this.socketMessageHandlers.reduce(
@@ -365,80 +370,75 @@ export class KrakenWS {
     }
   }
 
-  _establishConnection = ({ onClose }) => new Promise((resolve, reject) => {
-    this.log({
-      message: 'establish connection',
-      additional: { url: this._options.url },
-    })
-
-    const ws = new this._options.WebSocket(this._options.url)
-    this._connection = null
-
-    ws.onopen = (...args) => {
+  _establishConnection({ onClose }) {
+    return new Promise((resolve, reject) => {
       this.log({
-        message: 'establish connection :: success',
+        message: 'establish connection',
         additional: { url: this._options.url },
       })
-      this._connection = ws
-      resolve(ws)
-    }
 
-    ws.onerror = error => {
-      this.log({
-        message: 'establish connection :: failure',
-        additional: { url: this._options.url, error: error.message },
-      })
+      const ws = new this._options.WebSocket(this._options.url)
+      this._connection = null
 
-      if (this._connection) {
+      ws.onopen = () => {
+        this.log({
+          message: 'establish connection :: success',
+          additional: { url: this._options.url },
+        })
+        this._connection = ws
+        resolve(ws)
+      }
+
+      ws.onerror = error => {
+        this.log({
+          message: 'establish connection :: failure',
+          additional: { url: this._options.url, error: error.message },
+        })
+
+        if (this._connection) {
+          this._connection = null
+          onClose && onClose()
+        } else {
+          reject(error)
+        }
+      }
+
+      ws.onclose = () => {
+        if (!this._connection) return
+
+        this.log({
+          message: 'establish connection :: closed',
+          additional: { url: this._options.url },
+        })
+
         this._connection = null
         onClose && onClose()
-      } else {
-        reject(error)
       }
-    }
 
-    ws.onclose = () => {
-      if (!this._connection) return
+      ws.onmessage = this.handleMessage
+    })
+  }
 
-      this.log({
-        message: 'establish connection :: closed',
-        additional: { url: this._options.url },
-      })
-
-      this._connection = null
-      onClose && onClose()
-    }
-
-    ws.onmessage = this.handleMessage
-  })
-
-  _handleSubscription = checker => this
-    ._handleOneTimeMessageResponse(
+  _handleSubscription(checker) {
+    return this._handleOneTimeMessageResponse(
       checker,
       'kraken:subscribe:success',
-      'kraken:subscribe:error',
-    )
-    .then(response => ({
+      'kraken:subscribe:error'
+    ).then(response => ({
       ...response,
-      unsubscribe: () => this.unsubscribe({
-        name: repsonse.subscription.name,
-      })
+      unsubscribe: () =>
+        this.unsubscribe({
+          name: response.subscription.name,
+        }),
     }))
+  }
 
-  _handleUnsubscription = checker => this._handleOneTimeMessageResponse(
-    checker,
-    'kraken:unsubscribe:success',
-    'kraken:subscribe:error',
-  )
-
-  _handleOneTimeMessageResponse = (checker, successEvent, failureEvent) =>
-    new Promise((resolve, reject) => {
+  _handleOneTimeMessageResponse(checker, successEvent, failureEvent) {
+    return new Promise((resolve, reject) => {
       this.log({
         message: 'handleOneTimeMessageResponse :: start',
         additional: { successEvent, failureEvent },
       })
-
-      let unsubscribeSuccess, unsubscribeFailure
 
       const onResponse = (handler, eventName) => payload => {
         if (!checker(payload)) return
@@ -453,31 +453,44 @@ export class KrakenWS {
         handler(payload)
       }
 
-      unsubscribeSuccess = this.on(successEvent, onResponse(resolve, successEvent))
-      unsubscribeFailure = this.on(failureEvent, onResponse(reject, failureEvent))
+      const unsubscribeSuccess = this.on(
+        successEvent,
+        onResponse(resolve, successEvent)
+      )
+      const unsubscribeFailure = this.on(
+        failureEvent,
+        onResponse(reject, failureEvent)
+      )
     })
+  }
 
-  _handleUnsubscription = checker => new Promise((resolve, reject) => {
-    this.log({ message: 'handleUnsubscription :: start' })
+  _handleUnsubscription(checker) {
+    return new Promise((resolve, reject) => {
+      this.log({ message: 'handleUnsubscription :: start' })
 
-    let unsubscribeSuccess, unsubscribeFailure
+      const onResponse = handler => payload => {
+        if (!checker(payload)) return
 
-    const onResponse = handler => payload => {
-      if (!checker(payload)) return
+        this.log({
+          message: 'handleUnsubscription :: onResponse',
+          additional: { payload },
+        })
 
-      this.log({
-        message: 'handleUnsubscription :: onResponse',
-        additional: { payload },
-      })
+        unsubscribeSuccess()
+        unsubscribeFailure()
+        handler(payload)
+      }
 
-      unsubscribeSuccess()
-      unsubscribeFailure()
-      handler(payload)
-    }
-
-    unsubscribeSuccess = this.on('kraken:unsubscribe:success', onResponse(resolve))
-    unsubscribeFailure = this.on('kraken:subscribe:error', onResponse(reject))
-  })
+      const unsubscribeSuccess = this.on(
+        'kraken:unsubscribe:success',
+        onResponse(resolve)
+      )
+      const unsubscribeFailure = this.on(
+        'kraken:subscribe:error',
+        onResponse(reject)
+      )
+    })
+  }
 
   log({ message, additional, level = 'info', prefix = 'KrakenWS :: ' }) {
     if (this._options.log === DEFAULT_OPTIONS.log) return
@@ -489,7 +502,7 @@ export class KrakenWS {
     })
   }
 
-  autoPing = () => {
+  autoPing() {
     let intervalID = null
 
     const autoUpdatingSetInterval = (callback, timeout) => {
@@ -508,16 +521,17 @@ export class KrakenWS {
       'kraken:connection:reconnecting:start',
     ]
 
-    const connectEvents = [
-      'kraken:connection:established'
-    ]
+    const connectEvents = ['kraken:connection:established']
 
     this.on(disconnectEvents.join(' '), () => {
       if (intervalID) {
         this.log({ message: 'autoPing :: clear interval on disconnect event' })
         clearInterval(intervalID)
       } else {
-        this.log({ message: 'autoPing :: could not clear interval as no interval id on close' })
+        this.log({
+          message:
+            'autoPing :: could not clear interval as no interval id on close',
+        })
       }
     })
 
@@ -526,7 +540,10 @@ export class KrakenWS {
 
       autoUpdatingSetInterval(() => {
         const nextReqid = this._nextReqid++
-        this.log({ message: 'autoPing :: ping', additional: { reqid: nextReqid } })
+        this.log({
+          message: 'autoPing :: ping',
+          additional: { reqid: nextReqid },
+        })
         this.ping(nextReqid)
       })
     })

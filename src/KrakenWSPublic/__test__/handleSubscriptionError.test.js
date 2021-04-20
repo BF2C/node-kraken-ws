@@ -6,7 +6,7 @@ describe('handleSubscriptionError', () => {
       pair: 'XBT/EUR',
       event: 'subscriptionStatus',
       status: 'error',
-      subscription: { name: 'ticker' }
+      subscription: { name: 'ticker' },
     }
     const subscriptions = { ticker: {} }
     const expected = {
@@ -15,7 +15,7 @@ describe('handleSubscriptionError', () => {
         pair: 'XBT/EUR',
         event: 'subscriptionStatus',
         status: 'error',
-        subscription: { name: 'ticker' }
+        subscription: { name: 'ticker' },
       },
     }
     const actual = handleSubscriptionError({ payload, subscriptions })
@@ -35,7 +35,7 @@ describe('handleSubscriptionError', () => {
       pair: 'XBT/EUR',
       event: 'subscriptionStatus',
       status: 'success',
-      subscription: { name: 'ticker' }
+      subscription: { name: 'ticker' },
     }
     const subscriptions = {}
     const expected = undefined

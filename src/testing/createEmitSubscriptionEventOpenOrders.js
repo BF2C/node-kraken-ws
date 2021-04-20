@@ -11,6 +11,6 @@ export const createEmitSubscriptionEventOpenOrders = data => {
   return createEmitSubscriptionEventPublic({
     ...data,
     channelName: 'trade',
-    data: data.data.map(({ txid, ...trade }) => ({ [txid]: trade }))
+    data: data.data.map(({ txid, ...trade }) => ({ [txid]: trade })),
   })
 }

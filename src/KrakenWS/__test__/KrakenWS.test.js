@@ -1,11 +1,10 @@
 import EventEmitter from 'events'
 import { Server, WebSocket } from 'mock-socket'
-import WS from "jest-websocket-mock";
-import { KrakenWS } from '../KrakenWS'
-import { handleUnhandled } from '../handleUnhandled'
-import { handleSystemStatus } from '../handleSystemStatus'
 import { handleHeartbeat } from '../handleHeartbeat'
 import { handlePong } from '../handlePong'
+import { handleSystemStatus } from '../handleSystemStatus'
+import { handleUnhandled } from '../handleUnhandled'
+import { KrakenWS } from '../KrakenWS'
 
 describe('KrakenWS', () => {
   let server
@@ -37,13 +36,15 @@ describe('KrakenWS', () => {
 
     it('should start with the default options', () => {
       const instance = new KrakenWS({ WebSocket })
-      expect(instance._options).toEqual(expect.objectContaining({
-        retryCount: 5,
-        retryDelay: 100,
-        eventEmitterMaxListeners: 100,
-        autoPing: false,
-        maxReconnects: Infinity,
-      }))
+      expect(instance._options).toEqual(
+        expect.objectContaining({
+          retryCount: 5,
+          retryDelay: 100,
+          eventEmitterMaxListeners: 100,
+          autoPing: false,
+          maxReconnects: Infinity,
+        })
+      )
 
       expect(instance._options.EventEmitter).toBe(EventEmitter)
       expect(instance._options.WebSocket).toBe(WebSocket)
@@ -57,13 +58,15 @@ describe('KrakenWS', () => {
         EventEmitter,
       })
 
-      expect(instance._options).toEqual(expect.objectContaining({
-        retryCount: 6,
-        retryDelay: 100,
-        eventEmitterMaxListeners: 100,
-        autoPing: false,
-        maxReconnects: Infinity,
-      }))
+      expect(instance._options).toEqual(
+        expect.objectContaining({
+          retryCount: 6,
+          retryDelay: 100,
+          eventEmitterMaxListeners: 100,
+          autoPing: false,
+          maxReconnects: Infinity,
+        })
+      )
 
       expect(instance._options.EventEmitter).toBe(EventEmitter)
       expect(instance._options.WebSocket).toBe(WebSocket)
@@ -72,7 +75,7 @@ describe('KrakenWS', () => {
 
     it('should call the log function', () => {
       const log = jest.fn()
-      const instance = new KrakenWS({ log })
+      new KrakenWS({ log })
 
       expect(log).toHaveBeenNthCalledWith(1, {
         message: 'KrakenWS :: Constructing Kraken WS instance',
@@ -85,8 +88,8 @@ describe('KrakenWS', () => {
             eventEmitterMaxListeners: 100,
             autoPing: false,
             maxReconnects: Infinity,
-          })
-        }
+          }),
+        },
       })
     })
 
@@ -98,10 +101,12 @@ describe('KrakenWS', () => {
     it('should call the setMaxListeners method with the default optios value of 100', () => {
       const setMaxListeners = jest.fn()
       const Emitter = class Emitter {
-        setMaxListeners = setMaxListeners
+        constructor() {
+          this.setMaxListeners = setMaxListeners
+        }
         on() {}
       }
-      const instance = new KrakenWS({
+      new KrakenWS({
         EventEmitter: Emitter,
       })
 
@@ -141,8 +146,10 @@ describe('KrakenWS', () => {
     it('should forward the emit to the event handler', () => {
       const emit = jest.fn()
       const Emitter = class Emitter {
-        emit = emit
-        on = jest.fn()
+        constructor() {
+          this.emit = emit
+          this.on = jest.fn()
+        }
       }
 
       const instance = new KrakenWS({ EventEmitter: Emitter })
@@ -161,9 +168,11 @@ describe('KrakenWS', () => {
     const on = jest.fn()
     const removeListener = jest.fn()
     const Emitter = class {
-      emit = emit
-      on = on
-      removeListener = removeListener
+      constructor() {
+        this.emit = emit
+        this.on = on
+        this.removeListener = removeListener
+      }
     }
     let instance
 
@@ -183,8 +192,8 @@ describe('KrakenWS', () => {
         message: 'KrakenWS :: on',
         additional: {
           events: ['foo'],
-          additionalArgs: [1, 2, 3]
-        }
+          additionalArgs: [1, 2, 3],
+        },
       })
     })
 
@@ -239,11 +248,12 @@ describe('KrakenWS', () => {
         retryCount: 0,
       })
 
-
       server.close()
       const request = instance.connect()
 
-      await expect(request).rejects.toThrow('Connection refused, retryCount is 0')
+      await expect(request).rejects.toThrow(
+        'Connection refused, retryCount is 0'
+      )
     })
 
     it('should try reconnecting several times', async () => {
@@ -253,7 +263,6 @@ describe('KrakenWS', () => {
         retryDelay: 0,
         retryCount: 5,
       })
-
 
       server.close()
       const request = instance.connect()
@@ -291,7 +300,7 @@ describe('KrakenWS', () => {
     })
 
     it('should not reconnect when maxReconnects limit is hit', async () => {
-      let errorCounter = 0
+      const errorCounter = 0
       const instance = new KrakenWS({
         url,
         WebSocket,
@@ -327,8 +336,7 @@ describe('KrakenWS', () => {
         retryDelay: 0,
       })
 
-      await expect(instance.connect())
-        .resolves.toBeInstanceOf(WebSocket)
+      await expect(instance.connect()).resolves.toBeInstanceOf(WebSocket)
       await expect(instance.disconnect()).resolves.toEqual({ closed: true })
       await expect(instance.isConnected()).rejects.toBe()
     })
@@ -340,8 +348,7 @@ describe('KrakenWS', () => {
         retryDelay: 0,
       })
 
-      await expect(instance.connect())
-        .resolves.toBeInstanceOf(WebSocket)
+      await expect(instance.connect()).resolves.toBeInstanceOf(WebSocket)
       await expect(instance.disconnect()).resolves.toEqual({ closed: true })
       await expect(instance.isConnected()).rejects.toBe()
       await expect(instance.disconnect()).resolves.toEqual({ closed: false })
@@ -434,7 +441,9 @@ describe('KrakenWS', () => {
       const connectionRequest = instance.connect()
       await expect(connectionRequest).resolves.toBeInstanceOf(WebSocket)
       await expect(instance.ping()).resolves.toEqual({ reqid: 0 })
-      await expect(instance.ping({ reqid: 123 })).resolves.toEqual({ reqid: 123 })
+      await expect(instance.ping({ reqid: 123 })).resolves.toEqual({
+        reqid: 123,
+      })
     })
   })
 
@@ -464,10 +473,12 @@ describe('KrakenWS', () => {
 
       const event = { data: JSON.stringify({ name: 'foo' }) }
       instance.handleMessage(event)
-      expect(fakeHandler).toHaveBeenCalledWith(expect.objectContaining({
-        event,
-        payload: { name: 'foo' },
-      }))
+      expect(fakeHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event,
+          payload: { name: 'foo' },
+        })
+      )
     })
 
     it('should emit once for every handler that returns an emit payload', async () => {
@@ -486,7 +497,8 @@ describe('KrakenWS', () => {
       ]
 
       const promise = new Promise(resolve => {
-        let foo = false, bar = false
+        let foo = false,
+          bar = false
 
         instance.on('kraken:foo', () => {
           foo = true

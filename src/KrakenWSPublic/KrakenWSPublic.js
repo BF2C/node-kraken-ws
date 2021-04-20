@@ -1,6 +1,6 @@
 import { KrakenWS, isValidPublicName } from '../KrakenWS/index'
-import { handleSubscriptionEvent } from './handleSubscriptionEvent'
 import { handleSubscriptionError } from './handleSubscriptionError'
+import { handleSubscriptionEvent } from './handleSubscriptionEvent'
 import { handleSubscriptionSuccess } from './handleSubscriptionSuccess'
 import { handleUnsubscriptionSuccess } from './handleUnsubscriptionSuccess'
 
@@ -22,30 +22,30 @@ const validateInterval = interval => {
 }
 
 export class KrakenWSPublic extends KrakenWS {
-/**
- * @constructor
- * @param {Object} options
- *
- * @param {String} [options.url]
- * Default public url is: 'wss://ws.kraken.com'
- * Default private url is: 'wss://ws-auth.kraken.com'
- * Public channels can not be subscribed to on the private channel
- * and vice versa of course
- *
- * @param {Int} [options.retryCount]
- * How many times the socket should try to reconnect.
- *
- * @param {Int} [options.retryDelay]
- * Milliseconds between the retries
- *
- * @param {typeof EventEmitter} [options.EventEmitter]
- * Class to be instantiated as event handler
- * Must follow the api of the EventEmitter class
- *
- * @prop {typeof WebSocket} [options.WebSocket]
- * Class to be instantiated as websocket instance
- * Must follow the api of the WebSocket class provided by the ws npm module
- */
+  /**
+   * @constructor
+   * @param {Object} options
+   *
+   * @param {String} [options.url]
+   * Default public url is: 'wss://ws.kraken.com'
+   * Default private url is: 'wss://ws-auth.kraken.com'
+   * Public channels can not be subscribed to on the private channel
+   * and vice versa of course
+   *
+   * @param {Int} [options.retryCount]
+   * How many times the socket should try to reconnect.
+   *
+   * @param {Int} [options.retryDelay]
+   * Milliseconds between the retries
+   *
+   * @param {typeof EventEmitter} [options.EventEmitter]
+   * Class to be instantiated as event handler
+   * Must follow the api of the EventEmitter class
+   *
+   * @prop {typeof WebSocket} [options.WebSocket]
+   * Class to be instantiated as websocket instance
+   * Must follow the api of the WebSocket class provided by the ws npm module
+   */
   constructor(options) {
     super(options)
 
@@ -72,10 +72,13 @@ export class KrakenWSPublic extends KrakenWS {
     ]
   }
 
-  resubscribe = () => {
+  resubscribe() {
     super.resubscribe()
 
-    for (const [name, namedSubscriptions] of Object.entries(this.subscriptions)) {
+    for (const [name, namedSubscriptions] of Object.entries(
+      this.subscriptions
+    )) {
+      // eslint-disable-next-line prefer-const
       for (let [pair, options] of Object.entries(namedSubscriptions)) {
         options = { ...options, reconnect: true }
 
@@ -95,7 +98,7 @@ export class KrakenWSPublic extends KrakenWS {
    * @param {Int} [options.reqid]
    * @returns {Promise.<bool>}
    */
-  subscribeToTicker = ({ pair, reqid }) => {
+  subscribeToTicker({ pair, reqid }) {
     if (!pair) {
       throw new Error('Needs pair')
     }
@@ -110,7 +113,7 @@ export class KrakenWSPublic extends KrakenWS {
    * @param {Int} [options.reqid]
    * @returns {Promise.<bool>}
    */
-  subscribeToOHLC = ({ pair, reqid, interval }) => {
+  subscribeToOHLC({ pair, reqid, interval }) {
     if (!pair) {
       throw new Error('Needs pair')
     }
@@ -129,7 +132,7 @@ export class KrakenWSPublic extends KrakenWS {
    * @param {Int} [options.reqid]
    * @returns {Promise.<bool>}
    */
-  subscribeToTrade = ({ pair, reqid }) => {
+  subscribeToTrade({ pair, reqid }) {
     if (!pair) {
       throw new Error('Needs pair')
     }
@@ -143,7 +146,7 @@ export class KrakenWSPublic extends KrakenWS {
    * @param {Int} [options.reqid]
    * @returns {Promise.<bool>}
    */
-  subscribeToSpread = ({ pair, reqid }) => {
+  subscribeToSpread({ pair, reqid }) {
     if (!pair) {
       throw new Error('Needs pair')
     }
@@ -158,7 +161,7 @@ export class KrakenWSPublic extends KrakenWS {
    * @param {Int} [options.depth]
    * @returns {Promise.<bool>}
    */
-  subscribeToBook = ({ pair, reqid, depth }) => {
+  subscribeToBook({ pair, reqid, depth }) {
     if (!pair) {
       throw new Error('Needs pair')
     }
@@ -181,7 +184,7 @@ export class KrakenWSPublic extends KrakenWS {
    * @param {String} [options.token]
    * @returns {Promise.<bool>}
    */
-  subscribe = (pair, name, options) => {
+  subscribe(pair, name, options) {
     const logError = message => {
       this.log({ message, additional: { pair, name, options } })
       return message
@@ -213,7 +216,9 @@ export class KrakenWSPublic extends KrakenWS {
     }
 
     if (!isValidPublicName(name)) {
-      const msg = logError(`Invalid name. Valid names are: 'ticker', 'ohlc', 'trade', 'spread', 'book'. Received '${name}'`)
+      const msg = logError(
+        `Invalid name. Valid names are: 'ticker', 'ohlc', 'trade', 'spread', 'book'. Received '${name}'`
+      )
       return Promise.reject(new Error(msg))
     }
 
@@ -222,7 +227,7 @@ export class KrakenWSPublic extends KrakenWS {
       return Promise.reject(new Error(msg))
     }
 
-    const { reqid, depth, interval, snapshot, token, reconnect } = options
+    const { reqid, depth, interval, snapshot, reconnect } = options
     const alreadySubscribed = this.subscriptions[name][pair]
 
     if (alreadySubscribed && !reconnect) {
@@ -242,20 +247,19 @@ export class KrakenWSPublic extends KrakenWS {
       return payload.reqid === nextReqid
     }
 
-    return this._handleSubscription(checker)
-      .then(payload => {
-        this.log({
-          message: `Subscription success for name "${name}" with pair "${pair}"`,
-          additional: { name, pair, options },
-        })
-
-        this.subscriptions[name][pair] = options
-
-        return {
-          ...payload,
-          unsubscribe: () => this.unsubscribe({ pair, name, options })
-        }
+    return this._handleSubscription(checker).then(payload => {
+      this.log({
+        message: `Subscription success for name "${name}" with pair "${pair}"`,
+        additional: { name, pair, options },
       })
+
+      this.subscriptions[name][pair] = options
+
+      return {
+        ...payload,
+        unsubscribe: () => this.unsubscribe({ pair, name, options }),
+      }
+    })
   }
 
   /**
@@ -269,7 +273,7 @@ export class KrakenWSPublic extends KrakenWS {
    * @param {String} [args.options.token]
    * @returns {Promise.<bool>}
    */
-  unsubscribe = ({ pair, name, reqid, options }) => {
+  unsubscribe({ pair, name, reqid, options }) {
     let errorMessage
 
     this.log({
@@ -295,7 +299,7 @@ export class KrakenWSPublic extends KrakenWS {
     }
 
     const nextReqid = reqid || this._nextReqid++
-    const response = this.send({
+    this.send({
       event: 'unsubscribe',
       reqid: nextReqid,
       subscription: { name, ...options },
@@ -303,19 +307,17 @@ export class KrakenWSPublic extends KrakenWS {
     })
 
     const checker = payload =>
-      payload.reqid === nextReqid &&
-      payload.pair === pair
+      payload.reqid === nextReqid && payload.pair === pair
 
-    return this._handleUnsubscription(checker)
-      .then(payload => {
-        this.log({
-          message: `Unsubscribe success for name "${name}" with pair "${pair}"`,
-          additional: { name, pair, options },
-        })
-
-        delete this.subscriptions[name][pair]
-        return payload
+    return this._handleUnsubscription(checker).then(payload => {
+      this.log({
+        message: `Unsubscribe success for name "${name}" with pair "${pair}"`,
+        additional: { name, pair, options },
       })
+
+      delete this.subscriptions[name][pair]
+      return payload
+    })
   }
 
   /**
@@ -329,7 +331,7 @@ export class KrakenWSPublic extends KrakenWS {
    * @param {String} [args.options.token]
    * @returns {Promise.<bool>}
    */
-  unsubscribeMultiple = ({ pairs, name, reqid, options }) => {
+  unsubscribeMultiple({ pairs, name, reqid, options }) {
     let errorMessage
 
     this.log({
@@ -355,7 +357,7 @@ export class KrakenWSPublic extends KrakenWS {
     }
 
     const nextReqid = reqid || this._nextReqid++
-    const response = this.send({
+    this.send({
       event: 'unsubscribe',
       reqid: nextReqid,
       subscription: { ...options, name },
@@ -364,23 +366,26 @@ export class KrakenWSPublic extends KrakenWS {
 
     return Promise.all(
       pairs.map(curPair => {
-        const checker = payload => payload.reqid === nextReqid && payload.pair === curPair
+        const checker = payload =>
+          payload.reqid === nextReqid && payload.pair === curPair
 
-        return this._handleUnsubscription(checker)
-          .then(payload => {
-            this.log({
-              message: `Unsubscribe success for name "${name}" with pair "${curPair}"`,
-              additional: { name, pair: curPair, options },
+        return (
+          this._handleUnsubscription(checker)
+            .then(payload => {
+              this.log({
+                message: `Unsubscribe success for name "${name}" with pair "${curPair}"`,
+                additional: { name, pair: curPair, options },
+              })
+
+              delete this.subscriptions[name][curPair]
+              return payload
             })
-
-            delete this.subscriptions[name][curPair]
-            return payload
-          })
-          // will be handles in the next `.then` step
-          // We just need to make sure they're not added to `this.subscriptions`
-          .catch(payload => {
-            return payload
-          })
+            // will be handles in the next `.then` step
+            // We just need to make sure they're not added to `this.subscriptions`
+            .catch(payload => {
+              return payload
+            })
+        )
       })
     ).then(
       /*
@@ -388,8 +393,12 @@ export class KrakenWSPublic extends KrakenWS {
        * If none of the subscriptions was successful, the promise will reject
        */
       responses => {
-        const successfulResponses = responses.filter(response => !response.errorMessage)
-        const failureResponses = responses.filter(response => !!response.errorMessage)
+        const successfulResponses = responses.filter(
+          response => !response.errorMessage
+        )
+        const failureResponses = responses.filter(
+          response => !!response.errorMessage
+        )
 
         if (!successfulResponses.length) {
           this.log({

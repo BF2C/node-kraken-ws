@@ -6,9 +6,8 @@ export const handleUnhandled = ({ payload, event }) => {
   return {
     name: 'kraken:error',
     payload: {
-      errorMessage:
-        `Payload received from kraken is not handled. Received "${payload}"`,
+      errorMessage: `Payload received from kraken is not handled. Received "${payload}"`,
       error: event,
-    }
+    },
   }
 }

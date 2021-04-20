@@ -5,7 +5,7 @@ describe('handleHeartbeat', () => {
     const actual = handleHeartbeat({
       payload: {
         event: 'non-heartbeat',
-      }
+      },
     })
 
     const expected = undefined
@@ -17,7 +17,7 @@ describe('handleHeartbeat', () => {
     const actual = handleHeartbeat({
       payload: {
         event: 'heartbeat',
-      }
+      },
     })
 
     const expected = { name: 'kraken:heartbeat' }

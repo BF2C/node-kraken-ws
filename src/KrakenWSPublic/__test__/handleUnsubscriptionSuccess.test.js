@@ -6,11 +6,11 @@ describe('handleUnsubscriptionSuccess', () => {
       pair: 'XBT/EUR',
       event: 'subscriptionStatus',
       status: 'unsubscribed',
-      subscription: { name: 'ticker' }
+      subscription: { name: 'ticker' },
     }
 
     const subscriptions = {
-      ticker: { 'XBT/EUR': true }
+      ticker: { 'XBT/EUR': true },
     }
 
     const expected = {
@@ -19,7 +19,7 @@ describe('handleUnsubscriptionSuccess', () => {
         pair: 'XBT/EUR',
         event: 'subscriptionStatus',
         status: 'unsubscribed',
-        subscription: { name: 'ticker' }
+        subscription: { name: 'ticker' },
       },
     }
 
@@ -40,11 +40,11 @@ describe('handleUnsubscriptionSuccess', () => {
       pair: 'XBT/EUR',
       event: 'subscriptionStatus',
       status: 'subscribed',
-      subscription: { name: 'ticker' }
+      subscription: { name: 'ticker' },
     }
 
     const subscriptions = {
-      ticker: { 'XBT/EUR': true }
+      ticker: { 'XBT/EUR': true },
     }
 
     const expected = undefined
@@ -57,11 +57,11 @@ describe('handleUnsubscriptionSuccess', () => {
       pair: 'XBT/EUR',
       event: 'subscriptionStatus',
       status: 'unsubscribed',
-      subscription: { name: 'ticker' }
+      subscription: { name: 'ticker' },
     }
 
     const subscriptions = {
-      ticker: { 'XBT/USD': true }
+      ticker: { 'XBT/USD': true },
     }
 
     const expected = undefined

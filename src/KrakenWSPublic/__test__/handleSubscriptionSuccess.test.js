@@ -6,7 +6,7 @@ describe('handleSubscriptionSuccess', () => {
       pair: 'XBT/EUR',
       event: 'subscriptionStatus',
       status: 'subscribed',
-      subscription: { name: 'ticker' }
+      subscription: { name: 'ticker' },
     }
     const expected = {
       name: 'kraken:subscribe:success',
@@ -14,7 +14,7 @@ describe('handleSubscriptionSuccess', () => {
         pair: 'XBT/EUR',
         event: 'subscriptionStatus',
         status: 'subscribed',
-        subscription: { name: 'ticker' }
+        subscription: { name: 'ticker' },
       },
     }
     const actual = handleSubscriptionSuccess({ payload })
@@ -33,7 +33,7 @@ describe('handleSubscriptionSuccess', () => {
       pair: 'XBT/EUR',
       event: 'subscriptionStatus',
       status: 'error',
-      subscription: { name: 'ticker' }
+      subscription: { name: 'ticker' },
     }
     const expected = undefined
     const actual = handleSubscriptionSuccess({ payload })

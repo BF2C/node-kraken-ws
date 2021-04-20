@@ -4,7 +4,7 @@ describe('handleUnhandled', () => {
   it('should return undefined when receiving an object', () => {
     const expected = undefined
     const actual = handleUnhandled({
-      payload: { event: 'unhandled' }
+      payload: { event: 'unhandled' },
     })
 
     expect(actual).toBe(expected)
@@ -18,9 +18,10 @@ describe('handleUnhandled', () => {
     const expected = {
       name: 'kraken:error',
       payload: {
-        errorMessage: 'Payload received from kraken is not handled. Received "42"',
+        errorMessage:
+          'Payload received from kraken is not handled. Received "42"',
         error: event,
-      }
+      },
     }
 
     expect(actual).toEqual(expected)

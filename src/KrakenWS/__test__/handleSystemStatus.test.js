@@ -5,7 +5,7 @@ describe('handleSystemStatus', () => {
     const actual = handleSystemStatus({
       payload: {
         event: 'non-systemStatus',
-      }
+      },
     })
 
     const expected = undefined
@@ -17,7 +17,7 @@ describe('handleSystemStatus', () => {
     const actual = handleSystemStatus({
       payload: {
         event: 'systemStatus',
-      }
+      },
     })
 
     const expected = {
