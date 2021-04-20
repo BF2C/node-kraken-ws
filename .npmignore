@@ -4,3 +4,7 @@ babel.config.js
 rollup.config.js
 **/__test__
 .env
+.eslintrc.js  
+.huskyrc.js   
+.prettierrc.js
+jest.config.js
