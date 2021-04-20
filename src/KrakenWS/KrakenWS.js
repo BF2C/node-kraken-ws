@@ -415,7 +415,7 @@ export class KrakenWS {
         onClose && onClose()
       }
 
-      ws.onmessage = this.handleMessage
+      ws.onmessage = this.handleMessage.bind(this)
     })
   }
 
