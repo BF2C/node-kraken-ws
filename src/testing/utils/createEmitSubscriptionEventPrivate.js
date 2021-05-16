@@ -1,4 +1,4 @@
-export const createEmitSubscriptionEventPublic = data => {
+export const createEmitSubscriptionEventPrivate = data => {
   const emitData = []
 
   if (!data.data) throw new Error('Needs data')

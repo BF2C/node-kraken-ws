@@ -1,8 +1,8 @@
-import { createEmitSubscriptionEventPublic } from './utils/createEmitSubscriptionEventPublic'
+import { createEmitSubscriptionEventPrivate } from './utils/createEmitSubscriptionEventPrivate'
 
 export const createEmitSubscriptionEventOwnTrades = data => {
   if (!Array.isArray(data.data)) throw new Error('data needs to be an array')
-  if (!Array.isArray(data.sequence)) throw new Error('Needs "sequence"')
+  if (!Number.isInteger(data.sequence)) throw new Error('Needs "sequence"')
 
   data.data.forEach((trade, index) => {
     if (!trade.txid) throw new Error(`trade[${index}] needs "price"`)
@@ -39,9 +39,9 @@ export const createEmitSubscriptionEventOwnTrades = data => {
     if (!trade.vol) throw new Error(`trade[${index}] needs "vol"`)
   })
 
-  return createEmitSubscriptionEventPublic({
+  return createEmitSubscriptionEventPrivate({
     ...data,
-    channelName: 'trade',
+    channelName: 'ownTrades',
     data: data.data.map(({ txid, ...trade }) => ({ [txid]: trade })),
   })
 }
