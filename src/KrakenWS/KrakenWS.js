@@ -1,16 +1,18 @@
 import EventEmitter from 'events'
 import WebSocket from 'ws'
+import { debug as debugOrig } from '../utils/index'
 import { handleHeartbeat } from './handleHeartbeat'
 import { handlePong } from './handlePong'
 import { handleSystemStatus } from './handleSystemStatus'
 import { handleUnhandled } from './handleUnhandled'
+
+const debugKrakenWs = debugOrig.extend('KrakenWS')
 
 const DEFAULT_OPTIONS = {
   EventEmitter, // Event handler for composition
   WebSocket, // web socket class
   autoPing: false,
   eventEmitterMaxListeners: 100,
-  log: () => undefined,
   retryCount: 5,
   retryDelay: 100, // ms
   maxReconnects: Infinity,
@@ -50,16 +52,19 @@ export class KrakenWS {
    * Must follow the api of the WebSocket class provided by the ws npm module
    */
   constructor(options = {}) {
+    const debug = debugKrakenWs.extend('constructor')
+
     // "private" properties
     this._options = { ...DEFAULT_OPTIONS, ...options }
     this._connection = null
     this._nextReqid = 0
     this._curReconnect = 0
 
-    this.log({
-      message: 'Constructing Kraken WS instance',
-      additional: { options: this._options },
-    })
+    debug(
+      `Constructing Kraken WS instance, ${JSON.stringify({
+        options: this._options,
+      })}`
+    )
 
     // composition over inheritance
     this._eventHandler = new this._options.EventEmitter()
@@ -79,7 +84,7 @@ export class KrakenWS {
 
     this.on('kraken:connection:established', () => {
       if (this._curReconnect === 0) return
-      this.log({ message: 'resubscribe' })
+      debugKrakenWs('resubscribe')
       this.resubscribe()
     })
 
@@ -96,21 +101,25 @@ export class KrakenWS {
    * Forwards all arguments to the event handler
    */
   _emit(...args) {
-    this.log({ message: 'emit', additional: args })
+    const debug = debugKrakenWs.extend('emit')
+
+    debug(`event; ${JSON.stringify(args)}`)
     return this._eventHandler.emit(...args)
   }
 
   on(eventStr, callback, ...args) {
     const events = eventStr.split(' ')
-    this.log({ message: 'on', additional: { events, additionalArgs: args } })
-    events.map(event => this._eventHandler.on(event, callback, ...args))
+
+    events.map(event => {
+      debugKrakenWs(`Add event listener for: ${event}`)
+      this._eventHandler.on(event, callback, ...args)
+    })
 
     return () => {
-      this.log({ message: 'off', additional: { events } })
-
-      events.forEach(event =>
+      events.forEach(event => {
+        debugKrakenWs(`Remove event listener for: ${events.join(', ')}`)
         this._eventHandler.removeListener(event, callback)
-      )
+      })
     }
   }
 
@@ -125,27 +134,28 @@ export class KrakenWS {
    * @return {Promise.<void>}
    */
   connect(retryCounter = 0) {
+    const debug = debugKrakenWs.extend('connect')
+
     if (
       this._curReconnect > this._options.maxReconnects &&
       this._curReconnect > 0
     ) {
-      this.log({
-        message: 'connect -> max reconnects reached',
-        additional: {
+      debug(
+        `connect -> max reconnects reached; ${JSON.stringify({
           curReconnect: this._curReconnect,
           maxReconnects: this._options.maxReconnects,
-        },
-      })
+        })}`
+      )
 
       return Promise.reject(
         new Error(`Max reconnects of "${this._options.maxReconnects}" reached`)
       )
     }
 
-    this.log({ message: 'connect -> start' })
+    debug('connect -> start')
 
     if (this._connection) {
-      this.log({ message: 'connect -> already connected' })
+      debug('connect -> already connected')
       return Promise.resolve(this._connection)
     }
 
@@ -158,7 +168,7 @@ export class KrakenWS {
         `Max retrys of "${this._options.retryCount}" reached`
       )
 
-      this.log({ message: 'connect -> reconnecting:error' })
+      debug('connect -> reconnecting:error')
       this._emit('kraken:connection:closed')
       this._emit('kraken:connection:reconnecting:error', err)
       this._emit('kraken:connection:error', err)
@@ -170,12 +180,12 @@ export class KrakenWS {
 
     const onClose = () => {
       this._connection = null
-      this.log({ message: 'connect -> connection:closed' })
+      debug('connect -> connection:closed')
       this._emit('kraken:connection:closed')
 
       if (this._options.maxReconnects !== 0) {
         this._connection = null
-        this.log({ message: 'connect -> reconnecting:start' })
+        debug('connect -> reconnecting:start')
         this._emit('kraken:connection:reconnecting:start')
         this._curReconnect += 1
 
@@ -190,7 +200,7 @@ export class KrakenWS {
         const err = new Error('Connection refused, retryCount is 0')
 
         this._connection = null
-        this.log({ message: 'connect -> connection:noretry' })
+        debug('connect -> connection:noretry')
         this._emit('kraken:connection:noretry', err)
         this._emit('kraken:connection:error', err)
 
@@ -198,10 +208,11 @@ export class KrakenWS {
       }
 
       if (retryCounter !== 0) {
-        this.log({
-          message: 'connect -> reconnecting:continue',
-          additional: { counter: retryCounter + 1 },
-        })
+        debug(
+          `connect -> reconnecting:continue; ${JSON.stringify({
+            counter: retryCounter + 1,
+          })}`
+        )
 
         this._emit('kraken:connection:reconnecting:continue', {
           counter: retryCounter + 1,
@@ -271,9 +282,7 @@ export class KrakenWS {
    */
   send(message) {
     if (!this._connection) {
-      this.log({
-        message: 'Trying to send a message with closed connection',
-      })
+      debugKrakenWs('Trying to send a message with closed connection')
 
       throw new Error(
         "You can't send a message without an established websocket connection"
@@ -281,11 +290,7 @@ export class KrakenWS {
     }
 
     const payload = JSON.stringify(message)
-
-    this.log({
-      message: 'Send message',
-      additional: { payload: message },
-    })
+    debugKrakenWs(`Send message: ${JSON.stringify(message)}`)
 
     this._connection.send(payload)
   }
@@ -305,7 +310,6 @@ export class KrakenWS {
         resolve(payload)
       })
 
-      this.log({ message: 'ping', additional: { reqid: nextReqid } })
       this.send({ event: 'ping', reqid: nextReqid })
     })
   }
@@ -320,11 +324,9 @@ export class KrakenWS {
     try {
       payload = JSON.parse(event.data)
     } catch (event) {
-      this.log({
-        message: 'handleMessage :: Error parsing the payload',
-        level: 'error',
-        additional: { payload: event },
-      })
+      debugKrakenWs(
+        `handleMessage :: Error parsing the payload: ${JSON.stringify(event)}`
+      )
 
       return this._emit('kraken:error', {
         errorMessage: 'Error parsing the payload',
@@ -333,10 +335,9 @@ export class KrakenWS {
       })
     }
 
-    this.log({
-      message: 'handleMessage :: Success parsing the payload',
-      additional: { payload },
-    })
+    debugKrakenWs(
+      `handleMessage :: Success parsing the payload; ${JSON.stringify(payload)}`
+    )
 
     const allEmits = this.socketMessageHandlers.reduce(
       (emitting, inQuestion) => {
@@ -358,42 +359,34 @@ export class KrakenWS {
     )
 
     if (allEmits.length) {
-      this.log({
-        message: 'Generated emits for message',
-        additional: { emits: allEmits },
-      })
-
+      debugKrakenWs(`Generated emits for message: ${JSON.stringify(allEmits)}`)
       allEmits.forEach(({ name, payload }) => this._emit(name, payload))
     } else {
-      this.log({ message: 'No emits for generated' })
+      debugKrakenWs('No emits for generated')
       this._emit('kraken:unhandled', payload)
     }
   }
 
   _establishConnection({ onClose }) {
     return new Promise((resolve, reject) => {
-      this.log({
-        message: 'establish connection',
-        additional: { url: this._options.url },
-      })
+      debugKrakenWs(`establish connection (${this._options.url})`)
 
       const ws = new this._options.WebSocket(this._options.url)
       this._connection = null
 
       ws.onopen = () => {
-        this.log({
-          message: 'establish connection :: success',
-          additional: { url: this._options.url },
-        })
+        debugKrakenWs(`establish connection :: success (${this._options.url})`)
         this._connection = ws
         resolve(ws)
       }
 
       ws.onerror = error => {
-        this.log({
-          message: 'establish connection :: failure',
-          additional: { url: this._options.url, error: error.message },
-        })
+        debugKrakenWs(
+          `establish connection :: failure; ${JSON.stringify({
+            url: this._options.url,
+            error: error,
+          })}`
+        )
 
         if (this._connection) {
           this._connection = null
@@ -406,10 +399,7 @@ export class KrakenWS {
       ws.onclose = () => {
         if (!this._connection) return
 
-        this.log({
-          message: 'establish connection :: closed',
-          additional: { url: this._options.url },
-        })
+        debugKrakenWs(`establish connection :: closed (${this._options.url})`)
 
         this._connection = null
         onClose && onClose()
@@ -434,19 +424,25 @@ export class KrakenWS {
   }
 
   _handleOneTimeMessageResponse(checker, successEvent, failureEvent) {
+    const debug = debugKrakenWs.extend('handleOneTimeMessageResponse')
+
     return new Promise((resolve, reject) => {
-      this.log({
-        message: 'handleOneTimeMessageResponse :: start',
-        additional: { successEvent, failureEvent },
-      })
+      debug(
+        `start; ${JSON.stringify({
+          successEvent,
+          failureEvent,
+        })}`
+      )
 
       const onResponse = (handler, eventName) => payload => {
         if (!checker(payload)) return
 
-        this.log({
-          message: 'handleOneTimeMessageResponse :: onResponse',
-          additional: { event: eventName, payload },
-        })
+        debug(
+          `onResponse; ${JSON.stringify({
+            event: eventName,
+            payload,
+          })}`
+        )
 
         unsubscribeSuccess()
         unsubscribeFailure()
@@ -465,16 +461,15 @@ export class KrakenWS {
   }
 
   _handleUnsubscription(checker) {
+    const debug = debugKrakenWs.extend('handleUnsubscription')
+
     return new Promise((resolve, reject) => {
-      this.log({ message: 'handleUnsubscription :: start' })
+      debug('start')
 
       const onResponse = handler => payload => {
         if (!checker(payload)) return
 
-        this.log({
-          message: 'handleUnsubscription :: onResponse',
-          additional: { payload },
-        })
+        debug(`onResponse: ${JSON.stringify(payload)}`)
 
         unsubscribeSuccess()
         unsubscribeFailure()
@@ -489,63 +484,6 @@ export class KrakenWS {
         'kraken:subscribe:error',
         onResponse(reject)
       )
-    })
-  }
-
-  log({ message, additional, level = 'info', prefix = 'KrakenWS :: ' }) {
-    if (this._options.log === DEFAULT_OPTIONS.log) return
-
-    this._options.log({
-      message: `${prefix}${message}`,
-      level,
-      ...(additional ? { additional } : {}),
-    })
-  }
-
-  autoPing() {
-    let intervalID = null
-
-    const autoUpdatingSetInterval = (callback, timeout) => {
-      this.log({ message: 'autoPing :: autoUpdatingSetInterval called' })
-
-      intervalID = setInterval(() => {
-        this.log({ message: 'autoPing :: interval handler' })
-        callback()
-        autoUpdatingSetInterval()
-      }, timeout)
-    }
-
-    const disconnectEvents = [
-      'kraken:connection:establishing',
-      'kraken:connection:error',
-      'kraken:connection:reconnecting:start',
-    ]
-
-    const connectEvents = ['kraken:connection:established']
-
-    this.on(disconnectEvents.join(' '), () => {
-      if (intervalID) {
-        this.log({ message: 'autoPing :: clear interval on disconnect event' })
-        clearInterval(intervalID)
-      } else {
-        this.log({
-          message:
-            'autoPing :: could not clear interval as no interval id on close',
-        })
-      }
-    })
-
-    this.on(connectEvents.join(' '), () => {
-      this.log({ message: 'autoPing :: init interval on connect event' })
-
-      autoUpdatingSetInterval(() => {
-        const nextReqid = this._nextReqid++
-        this.log({
-          message: 'autoPing :: ping',
-          additional: { reqid: nextReqid },
-        })
-        this.ping(nextReqid)
-      })
     })
   }
 }

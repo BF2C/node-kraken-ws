@@ -1,4 +1,5 @@
 import { KrakenWS, isValidPublicName } from '../KrakenWS/index'
+import { debug as debugOrig } from '../utils/index'
 import { handleSubscriptionError } from './handleSubscriptionError'
 import { handleSubscriptionEvent } from './handleSubscriptionEvent'
 import { handleSubscriptionSuccess } from './handleSubscriptionSuccess'
@@ -20,6 +21,8 @@ const validateInterval = interval => {
   if (typeof interval !== 'number') return false
   return VALID_INTERVALS.includes(interval)
 }
+
+const debugKrakenWsPublic = debugOrig.extend('KrakenWSPublic')
 
 export class KrakenWSPublic extends KrakenWS {
   /**
@@ -82,10 +85,13 @@ export class KrakenWSPublic extends KrakenWS {
       for (let [pair, options] of Object.entries(namedSubscriptions)) {
         options = { ...options, reconnect: true }
 
-        this.log({
-          message: `Resubscribe "${name}" for pair "${pair}"`,
-          additional: { name, pair, options },
-        })
+        debugKrakenWsPublic(
+          `Resubscribe "${name}" for pair "${pair}"; ${JSON.stringify({
+            name,
+            pair,
+            options,
+          })}`
+        )
 
         this.subscribe(pair, name, options)
       }
@@ -185,15 +191,13 @@ export class KrakenWSPublic extends KrakenWS {
    * @returns {Promise.<bool>}
    */
   subscribe(pair, name, options) {
+    const debug = debugKrakenWsPublic.extend('subscribe')
     const logError = message => {
-      this.log({ message, additional: { pair, name, options } })
+      debug(`${message}; ${JSON.stringify({ pair, name, options })}`)
       return message
     }
 
-    this.log({
-      message: 'subscribe (public)',
-      additional: { name, pair, options },
-    })
+    debug(`${JSON.stringify({ name, pair, options })}`)
 
     if (!pair) {
       const msg = logError("You need to provide 'pair' when subscribing")
@@ -248,10 +252,11 @@ export class KrakenWSPublic extends KrakenWS {
     }
 
     return this._handleSubscription(checker).then(payload => {
-      this.log({
-        message: `Subscription success for name "${name}" with pair "${pair}"`,
-        additional: { name, pair, options },
-      })
+      debugKrakenWsPublic(
+        `Subscription success for name "${name}" with pair "${pair}"; ${JSON.stringify(
+          { name, pair, options }
+        )}`
+      )
 
       this.subscriptions[name][pair] = options
 
@@ -274,12 +279,10 @@ export class KrakenWSPublic extends KrakenWS {
    * @returns {Promise.<bool>}
    */
   unsubscribe({ pair, name, reqid, options }) {
+    const debug = debugKrakenWsPublic.extend('unsubscribe')
     let errorMessage
 
-    this.log({
-      message: 'unsubscribe (public)',
-      additional: { name, pair, options, reqid },
-    })
+    debug(`${JSON.stringify({ name, pair, options, reqid })}`)
 
     if (!name) {
       errorMessage = 'You need to provide "name" when subscribing'
@@ -290,10 +293,7 @@ export class KrakenWSPublic extends KrakenWS {
     }
 
     if (errorMessage) {
-      this.log({
-        message: 'unsubscribe (public) error',
-        additional: { errorMessage },
-      })
+      debug(`error; ${JSON.stringify({ errorMessage })}`)
 
       return Promise.reject({ errorMessage })
     }
@@ -310,10 +310,11 @@ export class KrakenWSPublic extends KrakenWS {
       payload.reqid === nextReqid && payload.pair === pair
 
     return this._handleUnsubscription(checker).then(payload => {
-      this.log({
-        message: `Unsubscribe success for name "${name}" with pair "${pair}"`,
-        additional: { name, pair, options },
-      })
+      debug(
+        `Unsubscribe success for name "${name}" with pair "${pair}"; ${JSON.stringify(
+          { name, pair, options }
+        )}`
+      )
 
       delete this.subscriptions[name][pair]
       return payload
@@ -332,12 +333,17 @@ export class KrakenWSPublic extends KrakenWS {
    * @returns {Promise.<bool>}
    */
   unsubscribeMultiple({ pairs, name, reqid, options }) {
+    const debug = debugKrakenWsPublic.extend('unsubscribeMultiple')
     let errorMessage
 
-    this.log({
-      message: 'unsubscribe multiple (public)',
-      additional: { name, pairs, options, reqid },
-    })
+    debug(
+      JSON.stringify({
+        name,
+        pairs,
+        options,
+        reqid,
+      })
+    )
 
     if (!name) {
       errorMessage = 'You need to provide "name" when subscribing'
@@ -348,10 +354,11 @@ export class KrakenWSPublic extends KrakenWS {
     }
 
     if (errorMessage) {
-      this.log({
-        message: 'unsubscribe multiple (public) error',
-        additional: { errorMessage },
-      })
+      debug(
+        `error; ${JSON.stringify({
+          errorMessage,
+        })}`
+      )
 
       return Promise.reject({ errorMessage })
     }
@@ -372,10 +379,11 @@ export class KrakenWSPublic extends KrakenWS {
         return (
           this._handleUnsubscription(checker)
             .then(payload => {
-              this.log({
-                message: `Unsubscribe success for name "${name}" with pair "${curPair}"`,
-                additional: { name, pair: curPair, options },
-              })
+              debug(
+                `Unsubscribe success for name "${name}" with pair "${curPair}"; ${JSON.stringify(
+                  { name, pair: curPair, options }
+                )}`
+              )
 
               delete this.subscriptions[name][curPair]
               return payload
@@ -401,29 +409,26 @@ export class KrakenWSPublic extends KrakenWS {
         )
 
         if (!successfulResponses.length) {
-          this.log({
-            message: `unsubscribe multiple (public) error :: all failed`,
-            additional: { name, pairs, options },
-          })
+          debug(
+            `unsubscribe multiple (public) error :: all failed; ${JSON.stringify(
+              { name, pairs, options }
+            )}`
+          )
           return Promise.reject(responses)
         }
 
         if (failureResponses.length) {
-          this.log({
-            message: `unsubscribe multiple (public) error :: some failed`,
-            additional: {
-              name,
-              pairs,
-              options,
-              successfulResponses,
-              failureResponses,
-            },
-          })
+          debug(
+            `unsubscribe multiple (public) error :: some failed; ${JSON.stringify(
+              { name, pairs, options, successfulResponses, failureResponses }
+            )}`
+          )
         } else {
-          this.log({
-            message: `unsubscribe multiple (public) error :: none failed`,
-            additional: { name, pairs, options, successfulResponses },
-          })
+          debug(
+            `unsubscribe multiple (public) error :: none failed; ${JSON.stringify(
+              { name, pairs, options, successfulResponses }
+            )}`
+          )
         }
 
         return {
@@ -432,9 +437,5 @@ export class KrakenWSPublic extends KrakenWS {
         }
       }
     )
-  }
-
-  log(data) {
-    super.log({ ...data, prefix: 'KrakenWSPublic :: ' })
   }
 }
