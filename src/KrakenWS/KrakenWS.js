@@ -11,11 +11,7 @@ const debugKrakenWs = debugOrig.extend('KrakenWS')
 const DEFAULT_OPTIONS = {
   EventEmitter, // Event handler for composition
   WebSocket, // web socket class
-  autoPing: false,
   eventEmitterMaxListeners: 100,
-  retryCount: 5,
-  retryDelay: 100, // ms
-  maxReconnects: Infinity,
 }
 
 /**
@@ -58,7 +54,6 @@ export class KrakenWS {
     this._options = { ...DEFAULT_OPTIONS, ...options }
     this._connection = null
     this._nextReqid = 0
-    this._curReconnect = 0
 
     debug(
       `Constructing Kraken WS instance, ${JSON.stringify({
@@ -81,20 +76,11 @@ export class KrakenWS {
 
     // public properties
     this.subscriptions = {}
-
-    this.on('kraken:connection:established', () => {
-      if (this._curReconnect === 0) return
-      debugKrakenWs('resubscribe')
-      this.resubscribe()
-    })
-
-    // auto ping
-    // @TODO(prevent resubscription)
-    // this._options.autoPing && this.autoPing()
   }
 
-  resubscribe() {
-    // noop
+  async reconnect() {
+    await this.disconnect()
+    await this.connect()
   }
 
   /**
@@ -133,146 +119,83 @@ export class KrakenWS {
    *
    * @return {Promise.<void>}
    */
-  connect(retryCounter = 0) {
+  connect() {
     const debug = debugKrakenWs.extend('connect')
-
-    if (
-      this._curReconnect > this._options.maxReconnects &&
-      this._curReconnect > 0
-    ) {
-      debug(
-        `connect -> max reconnects reached; ${JSON.stringify({
-          curReconnect: this._curReconnect,
-          maxReconnects: this._options.maxReconnects,
-        })}`
-      )
-
-      return Promise.reject(
-        new Error(`Max reconnects of "${this._options.maxReconnects}" reached`)
-      )
-    }
-
-    debug('connect -> start')
+    debug('Start connecting')
 
     if (this._connection) {
-      debug('connect -> already connected')
+      debug('Already connected')
       return Promise.resolve(this._connection)
     }
 
-    // do not continue if max retry count has been reached
-    const isRetrying = this._options.retryCount !== 0 && retryCounter !== 0
-    const hasReachedMaxRetryAmount = retryCounter === this._options.retryCount
-
-    if (isRetrying && hasReachedMaxRetryAmount) {
-      const err = new Error(
-        `Max retrys of "${this._options.retryCount}" reached`
-      )
-
-      debug('connect -> reconnecting:error')
-      this._emit('kraken:connection:closed')
-      this._emit('kraken:connection:reconnecting:error', err)
-      this._emit('kraken:connection:error', err)
-
-      return Promise.reject(err)
-    }
-
     this._emit('kraken:connection:establishing')
+    return this._establishConnection()
+  }
 
-    const onClose = () => {
+  _establishConnection() {
+    const debug = debugKrakenWs.extend('connect')
+
+    return new Promise((resolve, reject) => {
+      debug(`Establishing connection with ${this._options.url}`)
+
       this._connection = null
-      debug('connect -> connection:closed')
-      this._emit('kraken:connection:closed')
+      const ws = new this._options.WebSocket(this._options.url)
 
-      if (this._options.maxReconnects !== 0) {
-        this._connection = null
-        debug('connect -> reconnecting:start')
-        this._emit('kraken:connection:reconnecting:start')
-        this._curReconnect += 1
-
-        // ignore failure => retry happens automatically
-        this.connect().catch(() => null)
-      }
-    }
-
-    const onFailure = () => {
-      // change state to reconnecting during first
-      if (!this._options.retryCount) {
-        const err = new Error('Connection refused, retryCount is 0')
-
-        this._connection = null
-        debug('connect -> connection:noretry')
-        this._emit('kraken:connection:noretry', err)
-        this._emit('kraken:connection:error', err)
-
-        throw err
+      ws.onopen = () => {
+        this._connection = ws
+        debug(`Connection established with ${this._options.url}`)
+        resolve(ws)
       }
 
-      if (retryCounter !== 0) {
+      ws.onerror = error => {
         debug(
-          `connect -> reconnecting:continue; ${JSON.stringify({
-            counter: retryCounter + 1,
-          })}`
+          `Failed to establish connection with ${
+            this._options.url
+          }: ${JSON.stringify({ error })}`
         )
 
-        this._emit('kraken:connection:reconnecting:continue', {
-          counter: retryCounter + 1,
-        })
+        if (this._connection) {
+          this._connection = null
+        } else {
+          reject(error)
+        }
       }
 
-      return this._retryTimeout().then(() => this.connect(retryCounter + 1))
-    }
+      ws.onclose = () => {
+        if (!this._connection) return
+        debug(`Connection closed with ${this._options.url}`)
+        this._connection = null
+        this._emit('kraken:connection:closed')
+      }
 
-    return this._establishConnection({ onClose })
-      .then(_payload => {
-        this._emit('kraken:connection:established', _payload)
-        return _payload
-      })
-      .catch(error => onFailure(error))
+      ws.onmessage = this.handleMessage.bind(this)
+    })
   }
 
   /**
    * @returns {Promise.<void>}
    */
   disconnect() {
+    const debug = debugKrakenWs.extend('connect')
+
     // So we can interrup the retry process
     this._emit('internal:connection:disconnected-manually')
 
     // close connection if open
-    if (this._connection) {
-      this._connection.close()
-
-      return new Promise(resolve => {
-        const unsubscribe = this.on('kraken:connection:closed', () => {
-          this._connection = null
-          unsubscribe()
-          resolve({ closed: true })
-        })
-      })
+    if (!this._connection) {
+      debug('No connection exists')
+      return Promise.resolve({ closed: false })
     }
 
-    return Promise.resolve({ closed: false })
-  }
+    debug('Close active connection')
+    this._connection.close()
 
-  _retryTimeout() {
-    return new Promise((resolve, reject) => {
-      const unsubscribe = this.on(
-        'internal:connection:disconnected-manually',
-        () => {
-          if (!this._connection) reject()
-          unsubscribe()
-          clearTimeout(timeoutID)
-          reject()
-        }
-      )
-
-      const timeoutID = setTimeout(() => {
-        try {
-          unsubscribe()
-          resolve()
-        } catch (e) {
-          console.error(e)
-        }
-      }, this._options.retryDelay)
+    return new Promise(resolve => {
+      const unsubscribe = this.on('kraken:connection:closed', () => {
+        this._connection = null
+        unsubscribe()
+        resolve({ closed: true })
+      })
     })
   }
 
@@ -281,8 +204,10 @@ export class KrakenWS {
    * @returns {void}
    */
   send(message) {
+    const debug = debugKrakenWs.extend('send')
+
     if (!this._connection) {
-      debugKrakenWs('Trying to send a message with closed connection')
+      debug('Trying to send a message with closed connection')
 
       throw new Error(
         "You can't send a message without an established websocket connection"
@@ -290,7 +215,7 @@ export class KrakenWS {
     }
 
     const payload = JSON.stringify(message)
-    debugKrakenWs(`Send message: ${JSON.stringify(message)}`)
+    debug(`Send message: ${JSON.stringify(message)}`)
 
     this._connection.send(payload)
   }
@@ -320,11 +245,12 @@ export class KrakenWS {
    */
   handleMessage(event) {
     let payload
+    const debug = debugKrakenWs.extend('handleMessage')
 
     try {
       payload = JSON.parse(event.data)
     } catch (event) {
-      debugKrakenWs(
+      debug(
         `handleMessage :: Error parsing the payload: ${JSON.stringify(event)}`
       )
 
@@ -335,7 +261,7 @@ export class KrakenWS {
       })
     }
 
-    debugKrakenWs(
+    debug(
       `handleMessage :: Success parsing the payload; ${JSON.stringify(payload)}`
     )
 
@@ -359,54 +285,12 @@ export class KrakenWS {
     )
 
     if (allEmits.length) {
-      debugKrakenWs(`Generated emits for message: ${JSON.stringify(allEmits)}`)
+      debug(`Generated emits for message: ${JSON.stringify(allEmits)}`)
       allEmits.forEach(({ name, payload }) => this._emit(name, payload))
     } else {
-      debugKrakenWs('No emits for generated')
+      debug('No emits for generated')
       this._emit('kraken:unhandled', payload)
     }
-  }
-
-  _establishConnection({ onClose }) {
-    return new Promise((resolve, reject) => {
-      debugKrakenWs(`establish connection (${this._options.url})`)
-
-      const ws = new this._options.WebSocket(this._options.url)
-      this._connection = null
-
-      ws.onopen = () => {
-        debugKrakenWs(`establish connection :: success (${this._options.url})`)
-        this._connection = ws
-        resolve(ws)
-      }
-
-      ws.onerror = error => {
-        debugKrakenWs(
-          `establish connection :: failure; ${JSON.stringify({
-            url: this._options.url,
-            error: error,
-          })}`
-        )
-
-        if (this._connection) {
-          this._connection = null
-          onClose && onClose()
-        } else {
-          reject(error)
-        }
-      }
-
-      ws.onclose = () => {
-        if (!this._connection) return
-
-        debugKrakenWs(`establish connection :: closed (${this._options.url})`)
-
-        this._connection = null
-        onClose && onClose()
-      }
-
-      ws.onmessage = this.handleMessage.bind(this)
-    })
   }
 
   _handleSubscription(checker) {

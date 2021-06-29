@@ -1,6 +1,6 @@
 {
   "name": "node-kraken-ws",
-  "version": "4.0.5",
+  "version": "5.0.0-alpha.0",
   "description": "A websocket library for the kraken exchange",
   "main": "build/index.js",
   "sideEffects": false,

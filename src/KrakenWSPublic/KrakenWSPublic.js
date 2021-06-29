@@ -75,17 +75,16 @@ export class KrakenWSPublic extends KrakenWS {
     ]
   }
 
-  resubscribe() {
-    super.resubscribe()
+  async reconnect() {
+    const debug = debugKrakenWsPublic.extend('reconnect')
+    await super.reconnect()
 
-    for (const [name, namedSubscriptions] of Object.entries(
-      this.subscriptions
-    )) {
-      // eslint-disable-next-line prefer-const
-      for (let [pair, options] of Object.entries(namedSubscriptions)) {
-        options = { ...options, reconnect: true }
+    const reconnectProcesses = []
+    const subscriptionEntries = Object.entries(this.subscriptions)
 
-        debugKrakenWsPublic(
+    for (const [name, namedSubscriptions] of subscriptionEntries) {
+      for (const [pair, options] of Object.entries(namedSubscriptions)) {
+        debug(
           `Resubscribe "${name}" for pair "${pair}"; ${JSON.stringify({
             name,
             pair,
@@ -93,9 +92,16 @@ export class KrakenWSPublic extends KrakenWS {
           })}`
         )
 
-        this.subscribe(pair, name, options)
+        reconnectProcesses.push(
+          this.subscribe(pair, name, {
+            ...options,
+            reconnect: true,
+          })
+        )
       }
     }
+
+    await Promise.all(reconnectProcesses)
   }
 
   /**

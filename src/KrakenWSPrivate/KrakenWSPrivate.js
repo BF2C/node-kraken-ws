@@ -77,18 +77,22 @@ export class KrakenWSPrivate extends KrakenWS {
     ]
   }
 
-  resubscribe() {
-    super.resubscribe()
+  async reconnect() {
+    const debug = debugKrakenWsPrivate.extend('reconnect')
+    await super.reconnect()
 
+    const reconnectProcesses = []
     if (this.subscriptions.ownTrades) {
-      debugKrakenWsPrivate('Resubscribe "ownTrades"')
-      this.subscribeToOwnTrades({ reconnect: true })
+      debug('Resubscribe "ownTrades"')
+      reconnectProcesses.push(this.subscribeToOwnTrades({ reconnect: true }))
     }
 
     if (this.subscriptions.openOrders) {
-      debugKrakenWsPrivate('Resubscribe "openOrders"')
-      this.subscribeToOpenOrders({ reconnect: true })
+      debug('Resubscribe "openOrders"')
+      reconnectProcesses.push(this.subscribeToOpenOrders({ reconnect: true }))
     }
+
+    await Promise.all(reconnectProcesses)
   }
 
   /**

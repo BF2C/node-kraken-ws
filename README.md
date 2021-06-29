@@ -16,6 +16,16 @@ Tests have not been implemented yet and the docs are still incomplete.
   * [Private channel methods](#private-channel-methods)
   * [Private order methods](#private-order-methods)
 
+## Breaking changes in Version 5
+
+* The `log` options has been removed, the library now uses the `debug` module.
+* The library does not automatically reconnect when the connection closes or
+  when connecting fails
+  * Consumers should use the promise responses when connecting and the
+    heartbeat or a custom ping/pong mechanism to determine whether the
+    connection is alive or not and reconnect manually. This can be done with
+    the `reconnect` method
+
 ## How to use
 
 A websocket connection can subscribe to either public or private channels.
