@@ -77,7 +77,14 @@ export class KrakenWSPrivate extends KrakenWS {
     ]
   }
 
-  async reconnect() {
+  async reconnect({ token }) {
+    if (!token) {
+      throw new Error(
+        `You need to provide a token when reconnecting to the private websocket`
+      )
+    }
+    this._options.token = token
+
     const debug = debugKrakenWsPrivate.extend('reconnect')
     await super.reconnect()
 
