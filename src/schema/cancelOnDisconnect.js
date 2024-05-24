@@ -2,12 +2,12 @@ module.exports.cancelOnDisconnect = [
   {
     type: 'integer',
     name: 'timeout',
-    required: true
+    required: true,
   },
   {
     type: 'string',
     name: 'token',
     required: true,
-    valueType: 'any'
-  }
+    valueType: 'any',
+  },
 ]

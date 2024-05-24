@@ -53,7 +53,10 @@ function determinePossibleValues(valueType, $el, $) {
   }
 
   // enum
-  return $el.find('.api-param-attribute:contains("Possible values:") ~ code').toArray().map(code => $(code).text().trim())
+  return $el
+    .find('.api-param-attribute:contains("Possible values:") ~ code')
+    .toArray()
+    .map((code) => $(code).text().trim())
 }
 
 function getStringSchemaFromEl($el, $) {
@@ -61,11 +64,15 @@ function getStringSchemaFromEl($el, $) {
   const required = !!$el.find('.openapi-schema__required').length
   const apiParamAttributes = $el.find('.api-param-attribute').text().trim()
   const valueType = !apiParamAttributes.length
-  	? 'any'
+    ? 'any'
     : getStringValueType(apiParamAttributes)
 
-  const defaultValue = $el.find('.api-param-attribute:contains("Default value:") + code').text() || undefined
-  const format = $el.find('.api-param-attribute:contains("Format:") + code').text() || undefined
+  const defaultValue =
+    $el.find('.api-param-attribute:contains("Default value:") + code').text() ||
+    undefined
+  const format =
+    $el.find('.api-param-attribute:contains("Format:") + code').text() ||
+    undefined
 
   const possibleValues = ['constant', 'enum'].includes(valueType)
     ? determinePossibleValues(valueType, $el, $)
@@ -86,8 +93,10 @@ function getObjectSchemaFromEl($el, $) {
   const name = $el.find('.openapi-schema__property').first().text()
   const required = !!$el.find('.openapi-schema__required').length
 
-  const $properties = $el.find('> div > .openapi-schema__container ~ *:last-child > .openapi-schema__list-item')
-  const fields = $properties.toArray().map(el => getSchemaFromEl($(el), $))
+  const $properties = $el.find(
+    '> div > .openapi-schema__container ~ *:last-child > .openapi-schema__list-item'
+  )
+  const fields = $properties.toArray().map((el) => getSchemaFromEl($(el), $))
 
   return { type: 'object', name, required, fields }
 }
@@ -118,7 +127,9 @@ function getSchemaFromEl($el, $) {
 async function getSchemaForRequest(requestInfo) {
   const { url } = requestInfo
   const $ = await getCheerioForUrl(url)
-  const $requestSection = $('#request + div [role="tabpanel"]:first-child > div')
+  const $requestSection = $(
+    '#request + div [role="tabpanel"]:first-child > div'
+  )
   const $messageBodyProps = $requestSection.find('> div')
   const method = getSchemaFromEl($messageBodyProps.eq(0), $)
   const params = getSchemaFromEl($messageBodyProps.eq(1), $)

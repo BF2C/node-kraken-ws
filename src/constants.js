@@ -30,12 +30,7 @@ const limitOrderTypes = [
 ]
 module.exports.limitOrderTypes = limitOrderTypes
 
-const marketOrderTypes = [
-  'market',
-  'stop-loss',
-  'take-profit',
-  'trailing-stop',
-]
+const marketOrderTypes = ['market', 'stop-loss', 'take-profit', 'trailing-stop']
 module.exports.marketOrderTypes = marketOrderTypes
 
 const sides = ['buy', 'sell']

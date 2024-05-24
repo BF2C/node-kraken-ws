@@ -106,5 +106,5 @@ module.exports.apiMethods = [
     apiMethod: 'Ping',
     url: 'https://docs.kraken.com//api/docs/websocket-v2/ping',
     type: 'request',
-  }
+  },
 ]

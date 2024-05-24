@@ -14,7 +14,9 @@ describe('addOrder', () => {
   })
 
   it('should add a limit order', async () => {
-    const serverConnection = new Promise(resolve => server.on('connection', resolve))
+    const serverConnection = new Promise((resolve) =>
+      server.on('connection', resolve)
+    )
     const clientConnection = await connect({ authenticated: true })
 
     addOrder(clientConnection, {
@@ -29,7 +31,7 @@ describe('addOrder', () => {
     })
 
     const message = await serverConnection.then((socket) => {
-      return new Promise(resolve => socket.on('message', resolve))
+      return new Promise((resolve) => socket.on('message', resolve))
     })
 
     await expect(JSON.parse(message)).toEqual({
@@ -48,7 +50,9 @@ describe('addOrder', () => {
   })
 
   it('should add a limit order', async () => {
-    const serverConnection = new Promise(resolve => server.on('connection', resolve))
+    const serverConnection = new Promise((resolve) =>
+      server.on('connection', resolve)
+    )
     const clientConnection = await connect({ authenticated: true })
 
     addOrder(clientConnection, {
@@ -63,7 +67,7 @@ describe('addOrder', () => {
     })
 
     const message = await serverConnection.then((socket) => {
-      return new Promise(resolve => socket.on('message', resolve))
+      return new Promise((resolve) => socket.on('message', resolve))
     })
 
     await expect(JSON.parse(message)).toEqual({

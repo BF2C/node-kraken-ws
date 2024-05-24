@@ -11,24 +11,24 @@ const batchAdd = [
     type: 'string',
     name: 'deadline',
     required: false,
-    valueType: 'any'
+    valueType: 'any',
   },
   {
     type: 'string',
     name: 'symbol',
     required: true,
-    valueType: 'any'
+    valueType: 'any',
   },
   {
     type: 'boolean',
     name: 'validate',
-    required: false
+    required: false,
   },
   {
     type: 'string',
     name: 'token',
     required: true,
-    valueType: 'any'
+    valueType: 'any',
   },
   {
     type: 'array of objects',
@@ -42,8 +42,10 @@ const batchAdd = [
         condition: ({ params, parentPath }) => {
           const order = get(params, parentPath)
           if (!marketOrderTypes.includes(order.order_type)) {
-            const worksWith = marketOrderTypes.map(ot => `'${ot}'`).join(', ')
-            throw new ConditionalParamError(`Param '${parentPath}.cash_order_qty' only works with param '${parentPath}.order_type' being one of: ${worksWith}. Received order_type '${order.order_type}'`)
+            const worksWith = marketOrderTypes.map((ot) => `'${ot}'`).join(', ')
+            throw new ConditionalParamError(
+              `Param '${parentPath}.cash_order_qty' only works with param '${parentPath}.order_type' being one of: ${worksWith}. Received order_type '${order.order_type}'`
+            )
           }
         },
       },
@@ -64,24 +66,20 @@ const batchAdd = [
               'take-profit',
               'take-profit-limit',
               'trailing-stop',
-              'trailing-stop-limit'
-            ]
+              'trailing-stop-limit',
+            ],
           },
           {
             type: 'float',
             name: 'limit_price',
-            required: false
+            required: false,
           },
           {
             type: 'string',
             name: 'limit_price_type',
             required: false,
             valueType: 'enum',
-            possibleValues: [
-              'static',
-              'pct',
-              'quote'
-            ],
+            possibleValues: ['static', 'pct', 'quote'],
             defaultValue: 'quote',
             condition: ({ params, parentPath }) => {
               const order = get(params, parentPath)
@@ -95,26 +93,22 @@ const batchAdd = [
           {
             type: 'float',
             name: 'trigger_price',
-            required: false
+            required: false,
           },
           {
             type: 'string',
             name: 'trigger_price_type',
             required: false,
             valueType: 'enum',
-            possibleValues: [
-              'static',
-              'pct',
-              'quote'
-            ],
-            defaultValue: 'static'
+            possibleValues: ['static', 'pct', 'quote'],
+            defaultValue: 'static',
           },
           {
             type: 'float',
             name: 'stop_price',
-            required: false
-          }
-        ]
+            required: false,
+          },
+        ],
       },
       {
         type: 'float',
@@ -123,7 +117,9 @@ const batchAdd = [
         condition: ({ params, parentPath }) => {
           const order = get(params, parentPath)
           if (order.order_type !== 'iceberg') {
-            throw new ConditionalParamError(`Param '${parentPath}.display_qty' only works with param '${parentPath}.order_type' of value 'iceberd'. Received order_type '${order.order_type}'`)
+            throw new ConditionalParamError(
+              `Param '${parentPath}.display_qty' only works with param '${parentPath}.order_type' of value 'iceberd'. Received order_type '${order.order_type}'`
+            )
           }
         },
       },
@@ -131,7 +127,7 @@ const batchAdd = [
         type: 'string',
         name: 'effective_time',
         required: false,
-        valueType: 'any'
+        valueType: 'any',
       },
       {
         type: 'string',
@@ -141,7 +137,9 @@ const batchAdd = [
         condition: ({ params, parentPath }) => {
           const order = get(params, parentPath)
           if (order.time_in_force !== 'gtd') {
-            throw new ConditionalParamError(`Param '${parentPath}.expire_time' only works with param '${parentPath}.time_in_force' being one of: 'gtd'. Received time_in_force '${order.time_in_force}'`)
+            throw new ConditionalParamError(
+              `Param '${parentPath}.expire_time' only works with param '${parentPath}.time_in_force' being one of: 'gtd'. Received time_in_force '${order.time_in_force}'`
+            )
           }
         },
       },
@@ -150,10 +148,7 @@ const batchAdd = [
         name: 'fee_preference',
         required: false,
         valueType: 'enum',
-        possibleValues: [
-          'base',
-          'quote'
-        ]
+        possibleValues: ['base', 'quote'],
       },
       {
         type: 'float',
@@ -165,11 +160,7 @@ const batchAdd = [
         name: 'limit_price_type',
         required: false,
         valueType: 'enum',
-        possibleValues: [
-          'static',
-          'pct',
-          'quote'
-        ],
+        possibleValues: ['static', 'pct', 'quote'],
         defaultValue: 'quote',
         condition: ({ params, parentPath }) => {
           const order = get(params, parentPath)
@@ -183,7 +174,7 @@ const batchAdd = [
       {
         type: 'boolean',
         name: 'margin',
-        required: false
+        required: false,
       },
       {
         type: 'boolean',
@@ -192,8 +183,10 @@ const batchAdd = [
         condition: ({ params }) => {
           const order = get(params, parentPath)
           if (!marketOrderTypes.includes(params.order_type)) {
-            const worksWith = marketOrderTypes.map(ot => `'${ot}'`).join(', ')
-            throw new ConditionalParamError(`Param '${parentPath}.no_mpp' only works with param '${parentPath}.order_type' being one of: ${worksWith}. Received order_type '${order.order_type}'`)
+            const worksWith = marketOrderTypes.map((ot) => `'${ot}'`).join(', ')
+            throw new ConditionalParamError(
+              `Param '${parentPath}.no_mpp' only works with param '${parentPath}.order_type' being one of: ${worksWith}. Received order_type '${order.order_type}'`
+            )
           }
         },
       },
@@ -201,17 +194,17 @@ const batchAdd = [
         type: 'string',
         name: 'cl_ord_id',
         required: false,
-        valueType: 'any'
+        valueType: 'any',
       },
       {
         type: 'integer',
         name: 'order_userref',
-        required: false
+        required: false,
       },
       {
         type: 'float',
         name: 'order_qty',
-        required: true
+        required: true,
       },
       {
         type: 'string',
@@ -228,8 +221,8 @@ const batchAdd = [
           'take-profit-limit',
           'trailing-stop',
           'trailing-stop-limit',
-          'settle-position'
-        ]
+          'settle-position',
+        ],
       },
       {
         type: 'boolean',
@@ -238,49 +231,40 @@ const batchAdd = [
         condition: ({ params, parentPath }) => {
           const order = get(params, parentPath)
           if (!limitOrderTypes.includes(order.order_type)) {
-            const worksWith = limitOrderTypes.map(ot => `'${ot}'`).join(', ')
-            throw new ConditionalParamError(`Param '${parentPath}.post_only' only works with param '${parentPath}.order_type' being one of: ${worksWith}. Received order_type '${order.order_type}'`)
+            const worksWith = limitOrderTypes.map((ot) => `'${ot}'`).join(', ')
+            throw new ConditionalParamError(
+              `Param '${parentPath}.post_only' only works with param '${parentPath}.order_type' being one of: ${worksWith}. Received order_type '${order.order_type}'`
+            )
           }
         },
       },
       {
         type: 'boolean',
         name: 'reduce_only',
-        required: false
+        required: false,
       },
       {
         type: 'string',
         name: 'side',
         required: true,
         valueType: 'enum',
-        possibleValues: [
-          'buy',
-          'sell'
-        ]
+        possibleValues: ['buy', 'sell'],
       },
       {
         type: 'string',
         name: 'stp_type',
         required: false,
         valueType: 'enum',
-        possibleValues: [
-          'cancel_newest',
-          'cancel_oldest',
-          'cancel_both'
-        ],
-        defaultValue: 'cancel_newest'
+        possibleValues: ['cancel_newest', 'cancel_oldest', 'cancel_both'],
+        defaultValue: 'cancel_newest',
       },
       {
         type: 'string',
         name: 'time_in_force',
         required: false,
         valueType: 'enum',
-        possibleValues: [
-          'gtc',
-          'gtd',
-          'ioc'
-        ],
-        defaultValue: 'gtc'
+        possibleValues: ['gtc', 'gtd', 'ioc'],
+        defaultValue: 'gtc',
       },
       {
         type: 'object',
@@ -292,35 +276,32 @@ const batchAdd = [
             name: 'reference',
             required: false,
             valueType: 'enum',
-            possibleValues: [
-              'index',
-              'last'
-            ],
-            defaultValue: 'last'
+            possibleValues: ['index', 'last'],
+            defaultValue: 'last',
           },
           {
             type: 'float',
             name: 'price',
-            required: true
+            required: true,
           },
           {
             type: 'string',
             name: 'price_type',
             required: false,
             valueType: 'enum',
-            possibleValues: [
-              'static',
-              'pct',
-              'quote'
-            ],
-            defaultValue: 'static'
-          }
+            possibleValues: ['static', 'pct', 'quote'],
+            defaultValue: 'static',
+          },
         ],
         condition: ({ params, parentPath }) => {
           const order = get(params, parentPath)
           if (!triggeredOrderTypes.includes(order.order_type)) {
-            const worksWith = triggeredOrderTypes.map(ot => `'${ot}'`).join(', ')
-            throw new ConditionalParamError(`Param '${parentPath}.triggers' only works with param '${parentPath}.order_type' being one of: ${worksWith}. Received order_type '${order.order_type}'`)
+            const worksWith = triggeredOrderTypes
+              .map((ot) => `'${ot}'`)
+              .join(', ')
+            throw new ConditionalParamError(
+              `Param '${parentPath}.triggers' only works with param '${parentPath}.order_type' being one of: ${worksWith}. Received order_type '${order.order_type}'`
+            )
           }
         },
       },
@@ -329,34 +310,30 @@ const batchAdd = [
         name: 'sender_sub_id',
         required: false,
         valueType: 'any',
-        format: (value) => (
-          isUUIDLong(value)
-          || isUUIDShort(value)
-          || value.match(/^[a-zA-Z0-9]{1,18}^/)
-        ),
+        format: (value) =>
+          isUUIDLong(value) ||
+          isUUIDShort(value) ||
+          value.match(/^[a-zA-Z0-9]{1,18}^/),
       },
       {
         type: 'float',
         name: 'stop_price',
-        required: false
+        required: false,
       },
       {
         type: 'string',
         name: 'trigger',
         required: false,
         valueType: 'enum',
-        possibleValues: [
-          'last',
-          'index'
-        ],
-        defaultValue: 'last'
-      }
-    ]
+        possibleValues: ['last', 'index'],
+        defaultValue: 'last',
+      },
+    ],
   },
   {
     type: 'string',
     name: 'token',
     required: true,
-    valueType: 'any'
-  }
+    valueType: 'any',
+  },
 ]

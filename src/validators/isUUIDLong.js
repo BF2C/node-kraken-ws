@@ -9,5 +9,5 @@ module.exports.isUUIDLong = (value) => {
   if (parts[3].length !== 4) return false
   if (parts[4].length !== 12) return false
 
-  return parts.every(v => v.match(/^[a-z0-9A-Z]+$/))
+  return parts.every((v) => v.match(/^[a-z0-9A-Z]+$/))
 }

@@ -23,17 +23,14 @@ module.exports.addOrder = [
       'trailing-stop',
       'trailing-stop-limit',
       'settle-position',
-    ]
+    ],
   },
   {
     type: 'string',
     name: 'side',
     required: true,
     valueType: 'enum',
-    possibleValues: [
-      'buy',
-      'sell',
-    ]
+    possibleValues: ['buy', 'sell'],
   },
   {
     type: 'float',
@@ -56,11 +53,7 @@ module.exports.addOrder = [
     name: 'limit_price_type',
     required: false,
     valueType: 'enum',
-    possibleValues: [
-      'static',
-      'pct',
-      'quote',
-    ],
+    possibleValues: ['static', 'pct', 'quote'],
     defaultValue: 'quote',
     condition: ({ params }) => {
       if (params.order_type !== 'trailing-stop-limit') {
@@ -98,8 +91,10 @@ module.exports.addOrder = [
     ],
     condition: ({ params }) => {
       if (!triggeredOrderTypes.includes(params.order_type)) {
-        const worksWith = triggeredOrderTypes.map(ot => `'${ot}'`).join(', ')
-        throw new ConditionalParamError(`Param 'triggers' only works with param 'order_type' being one of: ${worksWith}. Received order_type '${params.order_type}'`)
+        const worksWith = triggeredOrderTypes.map((ot) => `'${ot}'`).join(', ')
+        throw new ConditionalParamError(
+          `Param 'triggers' only works with param 'order_type' being one of: ${worksWith}. Received order_type '${params.order_type}'`
+        )
       }
     },
   },
@@ -108,11 +103,7 @@ module.exports.addOrder = [
     name: 'time_in_force',
     required: false,
     valueType: 'enum',
-    possibleValues: [
-      'gtc',
-      'gtd',
-      'ioc',
-    ],
+    possibleValues: ['gtc', 'gtd', 'ioc'],
     defaultValue: 'gtc',
   },
   {
@@ -126,8 +117,10 @@ module.exports.addOrder = [
     required: false,
     condition: ({ params }) => {
       if (!limitOrderTypes.includes(params.order_type)) {
-        const worksWith = limitOrderTypes.map(ot => `'${ot}'`).join(', ')
-        throw new ConditionalParamError(`Param 'post_only' only works with param 'order_type' being one of: ${worksWith}. Received order_type '${params.order_type}'`)
+        const worksWith = limitOrderTypes.map((ot) => `'${ot}'`).join(', ')
+        throw new ConditionalParamError(
+          `Param 'post_only' only works with param 'order_type' being one of: ${worksWith}. Received order_type '${params.order_type}'`
+        )
       }
     },
   },
@@ -159,7 +152,9 @@ module.exports.addOrder = [
     },
     condition: ({ params }) => {
       if (params.time_in_force !== 'gtd') {
-        throw new ConditionalParamError(`Param 'expire_time' only works with param 'time_in_force' being one of: 'gtd'. Received time_in_force '${params.time_in_force}'`)
+        throw new ConditionalParamError(
+          `Param 'expire_time' only works with param 'time_in_force' being one of: 'gtd'. Received time_in_force '${params.time_in_force}'`
+        )
       }
     },
   },
@@ -179,11 +174,10 @@ module.exports.addOrder = [
     name: 'cl_ord_id',
     required: false,
     valueType: 'any',
-    format: (value) => (
-      isUUIDLong(value)
-      || isUUIDShort(value)
-      || value.match(/^[a-zA-Z0-9]{1,18}^/)
-    ),
+    format: (value) =>
+      isUUIDLong(value) ||
+      isUUIDShort(value) ||
+      value.match(/^[a-zA-Z0-9]{1,18}^/),
   },
   {
     type: 'integer',
@@ -208,7 +202,7 @@ module.exports.addOrder = [
           'take-profit-limit',
           'trailing-stop',
           'trailing-stop-limit',
-        ]
+        ],
       },
       {
         type: 'float',
@@ -220,11 +214,7 @@ module.exports.addOrder = [
         name: 'limit_price_type',
         required: false,
         valueType: 'enum',
-        possibleValues: [
-          'static',
-          'pct',
-          'quote',
-        ],
+        possibleValues: ['static', 'pct', 'quote'],
         defaultValue: 'quote',
         condition: ({ params }) => {
           if (params.conditional.order_type !== 'trailing-stop-limit') {
@@ -244,19 +234,15 @@ module.exports.addOrder = [
         name: 'trigger_price_type',
         required: false,
         valueType: 'enum',
-        possibleValues: [
-          'static',
-          'pct',
-          'quote',
-        ],
+        possibleValues: ['static', 'pct', 'quote'],
         defaultValue: 'static',
       },
       {
         type: 'float',
         name: 'stop_price',
         required: false,
-      }
-    ]
+      },
+    ],
   },
   {
     type: 'float',
@@ -264,7 +250,9 @@ module.exports.addOrder = [
     required: false,
     condition: ({ params }) => {
       if (params.order_type !== 'iceberg') {
-        throw new ConditionalParamError(`Param 'display_qty' only works with param 'order_type' of value 'iceberd'. Received order_type '${params.order_type}'`)
+        throw new ConditionalParamError(
+          `Param 'display_qty' only works with param 'order_type' of value 'iceberd'. Received order_type '${params.order_type}'`
+        )
       }
     },
   },
@@ -273,10 +261,7 @@ module.exports.addOrder = [
     name: 'fee_preference',
     required: false,
     valueType: 'enum',
-    possibleValues: [
-      'base',
-      'quote',
-    ]
+    possibleValues: ['base', 'quote'],
   },
   {
     type: 'boolean',
@@ -284,8 +269,10 @@ module.exports.addOrder = [
     required: false,
     condition: ({ params }) => {
       if (!marketOrderTypes.includes(params.order_type)) {
-        const worksWith = marketOrderTypes.map(ot => `'${ot}'`).join(', ')
-        throw new ConditionalParamError(`Param 'no_mpp' only works with param 'order_type' being one of: ${worksWith}. Received order_type '${params.order_type}'`)
+        const worksWith = marketOrderTypes.map((ot) => `'${ot}'`).join(', ')
+        throw new ConditionalParamError(
+          `Param 'no_mpp' only works with param 'order_type' being one of: ${worksWith}. Received order_type '${params.order_type}'`
+        )
       }
     },
   },
@@ -294,11 +281,7 @@ module.exports.addOrder = [
     name: 'stp_type',
     required: false,
     valueType: 'enum',
-    possibleValues: [
-      'cancel_newest',
-      'cancel_oldest',
-      'cancel_both',
-    ],
+    possibleValues: ['cancel_newest', 'cancel_oldest', 'cancel_both'],
     defaultValue: 'cancel_newest',
   },
   {
@@ -307,7 +290,9 @@ module.exports.addOrder = [
     required: false,
     condition: ({ params }) => {
       if (params.margin) {
-        throw new ConditionalParamError(`Param 'cash_order_qty' only works with param 'margin' of value 'false' (default). Received margin '${params.margin}'`)
+        throw new ConditionalParamError(
+          `Param 'cash_order_qty' only works with param 'margin' of value 'false' (default). Received margin '${params.margin}'`
+        )
       }
     },
   },
@@ -321,11 +306,10 @@ module.exports.addOrder = [
     name: 'sender_sub_id',
     required: false,
     valueType: 'any',
-    format: (value) => (
-      isUUIDLong(value)
-      || isUUIDShort(value)
-      || value.match(/^[a-zA-Z0-9]{1,18}^/)
-    ),
+    format: (value) =>
+      isUUIDLong(value) ||
+      isUUIDShort(value) ||
+      value.match(/^[a-zA-Z0-9]{1,18}^/),
   },
   {
     type: 'float',
@@ -337,10 +321,7 @@ module.exports.addOrder = [
     name: 'trigger',
     required: false,
     valueType: 'enum',
-    possibleValues: [
-      'last',
-      'index',
-    ],
+    possibleValues: ['last', 'index'],
     defaultValue: 'last',
   },
   {
@@ -348,5 +329,5 @@ module.exports.addOrder = [
     name: 'token',
     required: true,
     valueType: 'any',
-  }
+  },
 ]

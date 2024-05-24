@@ -2,12 +2,12 @@ module.exports.batchCancel = [
   {
     type: 'array of string',
     name: 'orders',
-    required: true
+    required: true,
   },
   {
     type: 'string',
     name: 'token',
     required: true,
-    valueType: 'any'
-  }
+    valueType: 'any',
+  },
 ]

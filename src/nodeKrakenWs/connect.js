@@ -15,7 +15,7 @@ module.exports.connect = function connect({ authenticated = false } = {}) {
       resolve(emitter)
     }
 
-    ws.onerror = error => {
+    ws.onerror = (error) => {
       console.log('> error:', error.error)
       if (!connected) {
         reject(error)
@@ -24,19 +24,24 @@ module.exports.connect = function connect({ authenticated = false } = {}) {
 
     ws.onclose = () => {
       if (!connected) {
-        reject(new Error('WebSocket closed before a connection was established'))
+        reject(
+          new Error('WebSocket closed before a connection was established')
+        )
       } else {
         emitter.emit('close')
       }
     }
 
-    ws.onmessage = raw => {
+    ws.onmessage = (raw) => {
       let message
 
       try {
         message = JSON.parse(message)
       } catch (e) {
-        emitter.emit('message:error', new Error(`Could not parse message: ${raw}`))
+        emitter.emit(
+          'message:error',
+          new Error(`Could not parse message: ${raw}`)
+        )
       }
 
       emitter.emit('message', message)
