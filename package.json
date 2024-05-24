@@ -1,64 +1,26 @@
 {
   "name": "node-kraken-ws",
-  "version": "5.1.0",
-  "description": "A websocket library for the kraken exchange",
-  "main": "build/index.js",
-  "sideEffects": false,
-  "author": "Jan-Gerke Salomon <jgs.salomon@gmail.com>",
-  "private": false,
-  "publishConfig": {
-    "access": "public"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/bf2c/node-kraken-ws.git"
-  },
-  "scripts": {
-    "test": "jest",
-    "build": "NODE_ENV=production rollup src/index.js --file build/index.js --format cjs --compact",
-    "watch": "rollup src/index.js --file build/index.js --format cjs --watch",
-    "release": "npm run build && npm publish --access public",
-    "playground": "babel-node --config-file ./babel.config.js",
-    "eslint:check": "eslint src/**/*.js",
-    "eslint:apply": "eslint --fix src/**/*.js"
-  },
+  "version": "1.0.0",
+  "description": "Uitlity library to connect to Kraken's v2 websocket API",
   "keywords": [],
-  "license": "BSD-3-Clause",
-  "devDependencies": {
-    "@babel/cli": "^7.12.1",
-    "@babel/core": "^7.12.3",
-    "@babel/node": "^7.12.6",
-    "@babel/plugin-proposal-class-properties": "^7.12.1",
-    "@babel/plugin-transform-async-to-generator": "^7.12.1",
-    "@babel/plugin-transform-runtime": "^7.12.1",
-    "@babel/preset-env": "^7.12.1",
-    "@babel/preset-stage-3": "^7.8.3",
-    "bufferutil": "^4.0.2",
-    "dotenv": "^8.2.0",
-    "eslint": "^7.24.0",
-    "eslint-config-prettier": "^8.2.0",
-    "eslint-plugin-import": "^2.22.1",
-    "eslint-plugin-prettier": "^3.4.0",
-    "fs-extra": "^9.0.1",
-    "husky": "^4.3.8",
-    "jest": "^26.6.3",
-    "jest-websocket-mock": "^2.2.0",
-    "kraken-api": "^1.0.1",
-    "mock-socket": "^9.0.3",
-    "prettier": "^2.2.1",
-    "regenerator-runtime": "^0.13.7",
-    "rollup": "^2.33.1",
-    "rollup-plugin-babel": "^4.4.0",
-    "rollup-plugin-commonjs": "^10.1.0",
-    "rollup-plugin-node-resolve": "^5.2.0",
-    "utf-8-validate": "^5.0.3"
+  "author": "Jan-Gerke Salomon",
+  "license": "ISC",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
   },
-  "dependencies": {
-    "babel-jest": "^26.6.3",
-    "chalk": "^4.1.0",
-    "debug": "^4.3.1",
-    "pino": "^6.8.0",
-    "ulog": "^2.0.0-beta.9",
-    "ws": "^7.3.1"
+  "devDependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "eslint": "^9.3.0",
+    "jest": "^29.7.0",
+    "lodash.get": "^4.4.2",
+    "mock-socket": "^9.3.1",
+    "node-fetch": "^2.7.0",
+    "prettier": "^3.2.5",
+    "ws": "^8.17.0"
+  },
+  "peerDependencies": {
+    "lodash.get": ">=4",
+    "ws": ">=8"
   }
 }

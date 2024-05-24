@@ -1,0 +1,110 @@
+module.exports.apiMethods = [
+  {
+    group: 'User Trading',
+    apiMethod: 'Add Order',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/add_order',
+    type: 'request',
+  },
+  {
+    group: 'User Trading',
+    apiMethod: 'Edit Order',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/edit_order',
+    type: 'request',
+  },
+  {
+    group: 'User Trading',
+    apiMethod: 'Cancel Order',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/cancel_order',
+    type: 'request',
+  },
+  {
+    group: 'User Trading',
+    apiMethod: 'Cancel All',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/cancel_all',
+    type: 'request',
+  },
+  {
+    group: 'User Trading',
+    apiMethod: 'Cancel on Disconnect',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/cancel_after',
+    type: 'request',
+  },
+  {
+    group: 'User Trading',
+    apiMethod: 'Batch Add',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/batch_add',
+    type: 'request',
+  },
+  {
+    group: 'User Trading',
+    apiMethod: 'Batch Cancel',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/batch_cancel',
+    type: 'request',
+  },
+  {
+    group: 'User Data',
+    apiMethod: 'Executions',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/executions',
+    type: 'subscription',
+  },
+  {
+    group: 'User Data',
+    apiMethod: 'Balances',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/balances',
+    type: 'subscription',
+  },
+  {
+    group: 'Market Data',
+    apiMethod: 'Ticker (Level 1)',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/ticker',
+    type: 'subscription',
+  },
+  {
+    group: 'Market Data',
+    apiMethod: 'Book (Level 2)',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/book',
+    type: 'subscription',
+  },
+  {
+    group: 'Market Data',
+    apiMethod: 'Orders (Level 3)',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/level3',
+    type: 'subscription',
+  },
+  {
+    group: 'Market Data',
+    apiMethod: 'Candles (OHLC)',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/ohlc',
+    type: 'subscription',
+  },
+  {
+    group: 'Market Data',
+    apiMethod: 'Trades',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/trade',
+    type: 'subscription',
+  },
+  {
+    group: 'Market Data',
+    apiMethod: 'Instruments',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/instrument',
+    type: 'subscription',
+  },
+  {
+    group: 'Admin',
+    apiMethod: 'Status',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/status',
+    type: 'update',
+  },
+  {
+    group: 'Admin',
+    apiMethod: 'Heartbeat',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/heartbeat',
+    type: 'update',
+  },
+  {
+    group: 'Admin',
+    apiMethod: 'Ping',
+    url: 'https://docs.kraken.com//api/docs/websocket-v2/ping',
+    type: 'request',
+  }
+]
