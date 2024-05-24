@@ -7,11 +7,18 @@
   "license": "ISC",
   "main": "index.js",
   "scripts": {
-    "test": "jest"
+    "postinstall": "husky",
+    "test": "jest",
+    "lint:check": "eslint src",
+    "lint:apply": "eslint src --fix",
+    "prettier:check": "prettier src --check",
+    "prettier:apply": "prettier src --write",
+    "precommit": "npm run test && npm run lint:check && npm run prettier:check"
   },
   "devDependencies": {
     "cheerio": "^1.0.0-rc.12",
     "eslint": "^9.3.0",
+    "husky": "^9.0.11",
     "jest": "^29.7.0",
     "lodash.get": "^4.4.2",
     "mock-socket": "^9.3.1",
